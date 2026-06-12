@@ -1,0 +1,14 @@
+streamlit
+pandas
+numpy
+requests
+beautifulsoup4
+lxml
+sqlalchemy
+plotly
+openpyxl
+groq
+crawl4ai
+python-dotenv
+aiohttp
+asyncio
