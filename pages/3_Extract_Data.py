@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+
 from datetime import datetime
 
 from src.database.crud import (
@@ -13,51 +14,65 @@ from src.extraction.regex_extractor import (
     extract_contacts
 )
 
+from src.extraction.parser import (
+    quick_extract,
+    content_statistics
+)
+
 from src.extraction.groq_extractor import (
     extract_college_details
 )
 
-# ----------------------------------------
+# =====================================================
 # PAGE CONFIG
-# ----------------------------------------
+# =====================================================
 
 st.set_page_config(
-    page_title="GROQ Data Extraction",
+    page_title="College Data Extraction",
     page_icon="🤖",
     layout="wide"
 )
 
-# ----------------------------------------
-# TITLE
-# ----------------------------------------
+# =====================================================
+# HEADER
+# =====================================================
 
-st.title("🤖 GROQ Data Extraction")
+st.title(
+    "🤖 College Data Extraction"
+)
 
-st.markdown("""
-Extract structured college information from Crawl4AI content using:
+st.markdown(
+    """
+    Extract structured information from crawled college websites.
 
-- Regex Extraction
-- GROQ LLM
-- JSON Schema Validation
-""")
+    Extraction Methods:
 
-# ----------------------------------------
-# LOAD CRAWL RESULTS
-# ----------------------------------------
+    • Regex Extraction
+    • Parser Extraction
+    • GROQ LLM Extraction
+    • JSON Validation
+    """
+)
+
+# =====================================================
+# LOAD DATA
+# =====================================================
 
 crawl_df = get_crawl_results()
 
 if crawl_df.empty:
 
     st.warning(
-        "No crawled websites found. Please run Website Crawler first."
+        "No crawled websites found."
     )
 
     st.stop()
 
-# ----------------------------------------
+history_df = get_extracted_table()
+
+# =====================================================
 # STATS
-# ----------------------------------------
+# =====================================================
 
 col1, col2, col3 = st.columns(3)
 
@@ -66,57 +81,72 @@ col1.metric(
     len(crawl_df)
 )
 
-existing_df = get_extracted_table()
-
 col2.metric(
-    "Already Extracted",
-    len(existing_df)
-)
-
-remaining = max(
-    0,
-    len(crawl_df) - len(existing_df)
+    "Extracted Records",
+    len(history_df)
 )
 
 col3.metric(
     "Pending",
-    remaining
+    max(
+        0,
+        len(crawl_df) - len(history_df)
+    )
 )
 
 st.markdown("---")
 
-# ----------------------------------------
-# SELECT COLLEGE
-# ----------------------------------------
+# =====================================================
+# COLLEGE SELECTION
+# =====================================================
 
 college_name = st.selectbox(
     "Select College",
-    crawl_df["college_name"].tolist()
+    crawl_df[
+        "college_name"
+    ].tolist()
 )
 
 selected = crawl_df[
-    crawl_df["college_name"] == college_name
+    crawl_df["college_name"]
+    == college_name
 ].iloc[0]
 
 markdown = selected["markdown"]
 
-# ----------------------------------------
+# =====================================================
 # CONTENT PREVIEW
-# ----------------------------------------
+# =====================================================
 
-st.subheader("📄 Crawled Content")
+st.subheader(
+    "📄 Crawled Content"
+)
 
 st.text_area(
-    "Markdown",
+    "Website Content",
     markdown[:10000],
     height=300
 )
 
-# ----------------------------------------
-# REGEX EXTRACTION
-# ----------------------------------------
+# =====================================================
+# CONTENT STATS
+# =====================================================
 
-st.subheader("📧 Regex Extraction")
+stats = content_statistics(
+    markdown
+)
+
+st.json(stats)
+
+# =====================================================
+# REGEX EXTRACTION
+# =====================================================
+
+st.markdown("---")
+
+st.subheader(
+    "📧 Contact Extraction"
+)
 
 if st.button(
     "Extract Contacts",
@@ -127,19 +157,58 @@ if st.button(
         markdown
     )
 
-    st.session_state["contacts"] = contacts
+    st.session_state[
+        "contacts"
+    ] = contacts
 
 if "contacts" in st.session_state:
 
     st.json(
-        st.session_state["contacts"]
+        st.session_state[
+            "contacts"
+        ]
     )
 
-# ----------------------------------------
-# GROQ EXTRACTION
-# ----------------------------------------
+# =====================================================
+# QUICK PARSER
+# =====================================================
 
-st.subheader("🧠 GROQ Structured Extraction")
+st.markdown("---")
+
+st.subheader(
+    "⚡ Quick Parser"
+)
+
+if st.button(
+    "Run Quick Parser",
+    use_container_width=True
+):
+
+    parsed = quick_extract(
+        markdown
+    )
+
+    st.session_state[
+        "quick_extract"
+    ] = parsed
+
+if "quick_extract" in st.session_state:
+
+    st.json(
+        st.session_state[
+            "quick_extract"
+        ]
+    )
+
+# =====================================================
+# GROQ EXTRACTION
+# =====================================================
+
+st.markdown("---")
+
+st.subheader(
+    "🧠 GROQ Structured Extraction"
+)
 
 if st.button(
     "Run GROQ Extraction",
@@ -147,18 +216,20 @@ if st.button(
 ):
 
     with st.spinner(
-        "Extracting using GROQ..."
+        "Running GROQ Extraction..."
     ):
 
         try:
 
-            extracted = extract_college_details(
-                markdown
+            result = (
+                extract_college_details(
+                    markdown
+                )
             )
 
             st.session_state[
                 "groq_output"
-            ] = extracted
+            ] = result
 
             st.success(
                 "Extraction Complete"
@@ -166,16 +237,18 @@ if st.button(
 
         except Exception as e:
 
-            st.error(str(e))
+            st.error(
+                str(e)
+            )
 
-# ----------------------------------------
-# DISPLAY RESULT
-# ----------------------------------------
+# =====================================================
+# DISPLAY OUTPUT
+# =====================================================
 
 if "groq_output" in st.session_state:
 
     st.subheader(
-        "Structured JSON"
+        "Structured College Data"
     )
 
     st.json(
@@ -184,25 +257,23 @@ if "groq_output" in st.session_state:
         ]
     )
 
-# ----------------------------------------
-# SAVE RESULT
-# ----------------------------------------
+# =====================================================
+# SAVE OUTPUT
+# =====================================================
 
 if "groq_output" in st.session_state:
 
     if st.button(
-        "💾 Save Structured Data",
+        "💾 Save Extracted Data",
         use_container_width=True
     ):
 
         try:
 
-            data = st.session_state[
-                "groq_output"
-            ]
-
             save_extracted_data(
-                data
+                st.session_state[
+                    "groq_output"
+                ]
             )
 
             st.success(
@@ -211,11 +282,13 @@ if "groq_output" in st.session_state:
 
         except Exception as e:
 
-            st.error(str(e))
+            st.error(
+                str(e)
+            )
 
-# ----------------------------------------
+# =====================================================
 # BULK EXTRACTION
-# ----------------------------------------
+# =====================================================
 
 st.markdown("---")
 
@@ -227,11 +300,14 @@ bulk_limit = st.number_input(
     "Number of Colleges",
     min_value=1,
     max_value=len(crawl_df),
-    value=min(10, len(crawl_df))
+    value=min(
+        10,
+        len(crawl_df)
+    )
 )
 
 if st.button(
-    "Run Bulk Extraction",
+    "Run Bulk GROQ Extraction",
     use_container_width=True
 ):
 
@@ -251,8 +327,10 @@ if st.button(
 
         try:
 
-            result = extract_college_details(
-                row.markdown
+            result = (
+                extract_college_details(
+                    row.markdown
+                )
             )
 
             save_extracted_data(
@@ -262,7 +340,6 @@ if st.button(
             success_count += 1
 
         except Exception:
-
             pass
 
         progress.progress(
@@ -275,12 +352,12 @@ if st.button(
         )
 
     status.success(
-        f"Completed. {success_count} colleges extracted."
+        f"{success_count} colleges extracted."
     )
 
-# ----------------------------------------
-# EXTRACTION HISTORY
-# ----------------------------------------
+# =====================================================
+# HISTORY
+# =====================================================
 
 st.markdown("---")
 
@@ -301,12 +378,12 @@ if not history_df.empty:
 else:
 
     st.info(
-        "No extracted records available."
+        "No extracted data available."
     )
 
-# ----------------------------------------
-# JSON EXPORT
-# ----------------------------------------
+# =====================================================
+# EXPORT
+# =====================================================
 
 if not history_df.empty:
 
@@ -318,13 +395,13 @@ if not history_df.empty:
     st.download_button(
         "⬇ Download JSON",
         json_data,
-        file_name="extracted_colleges.json",
+        file_name="colleges.json",
         mime="application/json"
     )
 
-# ----------------------------------------
-# RAW JSON VIEW
-# ----------------------------------------
+# =====================================================
+# RAW JSON
+# =====================================================
 
 with st.expander(
     "View Raw JSON"
@@ -342,9 +419,9 @@ with st.expander(
             language="json"
         )
 
-# ----------------------------------------
+# =====================================================
 # FOOTER
-# ----------------------------------------
+# =====================================================
 
 st.markdown("---")
 
@@ -353,5 +430,5 @@ st.caption(
 )
 
 st.caption(
-    "VTU College Intelligence Platform | GROQ Extraction Module"
+    "VTU College Intelligence Platform"
 )
