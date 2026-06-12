@@ -32,7 +32,8 @@ from src.extraction.parser import (
     chunk_markdown,
     extract_json,
     validate_college_json,
-    merge_json_results
+    merge_json_results,
+    quick_extract
 )
 
 from src.utils.config import (
@@ -50,9 +51,52 @@ def extract_chunk(
     try:
 
         prompt = f"""
-{COLLEGE_EXTRACTION_PROMPT}
+You are an expert College Intelligence Extraction System.
 
-CONTENT:
+Analyze the college website content and extract structured information.
+
+IMPORTANT:
+- Return VALID JSON ONLY
+- Do NOT return explanations
+- Do NOT use markdown
+- If information is not available, return empty string ""
+- For list fields return []
+
+JSON SCHEMA:
+
+{{
+    "college_name": "",
+    "college_code": "",
+    "district": "",
+    "website": "",
+    "address": "",
+    "email": "",
+    "phone": "",
+    "principal": "",
+    "director": "",
+    "established_year": "",
+    "ownership_type": "",
+    "naac_grade": "",
+    "nba_status": "",
+    "nirf_rank": "",
+    "campus_area": "",
+    "student_strength": "",
+    "faculty_count": "",
+    "courses": [],
+    "departments": [],
+    "placement_percentage": "",
+    "highest_package": "",
+    "average_package": "",
+    "recruiters": [],
+    "research_centers": [],
+    "patents": "",
+    "linkedin": "",
+    "facebook": "",
+    "instagram": "",
+    "youtube": ""
+}}
+
+COLLEGE WEBSITE CONTENT:
 
 {content}
 """
@@ -63,6 +107,14 @@ CONTENT:
 
         result = extract_json(
             response
+        )
+
+        if not result:
+
+            return {}
+
+        result = validate_college_json(
+            result
         )
 
         return result
@@ -128,6 +180,14 @@ def extract_college_details(
     )
 
     # -------------------------------------
+    # QUICK PARSER EXTRACTION
+    # -------------------------------------
+
+    parser_data = quick_extract(
+        content
+    )
+
+    # -------------------------------------
     # CHUNK CONTENT
     # -------------------------------------
 
@@ -158,7 +218,7 @@ def extract_college_details(
             )
 
     # -------------------------------------
-    # MERGE LLM OUTPUTS
+    # MERGE LLM RESULTS
     # -------------------------------------
 
     llm_data = merge_json_results(
@@ -166,7 +226,7 @@ def extract_college_details(
     )
 
     # -------------------------------------
-    # FINAL OUTPUT
+    # FINAL MERGE
     # -------------------------------------
 
     final_data = (
@@ -175,7 +235,7 @@ def extract_college_details(
 
     final_data = merge_results(
         final_data,
-        llm_data
+        parser_data
     )
 
     final_data = merge_results(
@@ -183,12 +243,16 @@ def extract_college_details(
         regex_data
     )
 
+    final_data = merge_results(
+        final_data,
+        llm_data
+    )
+
     final_data = validate_college_json(
         final_data
     )
 
     return final_data
-
 
 # =====================================================
 # BULK EXTRACTION
@@ -395,6 +459,51 @@ def save_extraction_result(
 
         )
 
+def extract_complete_college_profile(
+    content: str
+):
+
+    result = extract_college_details(
+        content
+    )
+
+    placement = extract_placement_info(
+        content
+    )
+
+    accreditation = extract_accreditation_info(
+        content
+    )
+
+    courses = extract_course_info(
+        content
+    )
+
+    research = extract_research_info(
+        content
+    )
+
+    result = merge_results(
+        result,
+        placement
+    )
+
+    result = merge_results(
+        result,
+        accreditation
+    )
+
+    result = merge_results(
+        result,
+        courses
+    )
+
+    result = merge_results(
+        result,
+        research
+    )
+
+    return result
 
 # =====================================================
 # TEST
