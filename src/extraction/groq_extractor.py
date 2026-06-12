@@ -1,39 +1,38 @@
 """
 src/extraction/groq_extractor.py
 
-GROQ Powered College Information Extraction
+GROQ Based College Intelligence Extraction
 
-Pipeline:
+Input:
+------
+Website Content (Text)
 
-Crawl4AI Markdown
-        ↓
-Regex Extraction
-        ↓
-Chunking
-        ↓
-GROQ LLM
-        ↓
-JSON Validation
-        ↓
-Final Structured Output
+Output:
+-------
+Structured College Information
 """
 
 import json
 from typing import Dict, List
 
-from src.llm.groq_client import groq_completion
-from src.llm.prompts import COLLEGE_EXTRACTION_PROMPT
+from src.llm.groq_client import (
+    groq_completion
+)
 
-from src.extraction.parser import (
-    chunk_markdown,
-    extract_json,
-    validate_college_json,
-    merge_json_results,
-    clean_markdown
+from src.llm.prompts import (
+    COLLEGE_EXTRACTION_PROMPT
 )
 
 from src.extraction.regex_extractor import (
     extract_regex_information
+)
+
+from src.extraction.parser import (
+    clean_text,
+    chunk_markdown,
+    extract_json,
+    validate_college_json,
+    merge_json_results
 )
 
 from src.utils.config import (
@@ -45,7 +44,7 @@ from src.utils.config import (
 # =====================================================
 
 def extract_chunk(
-    markdown_chunk: str
+    content: str
 ) -> Dict:
 
     try:
@@ -55,11 +54,11 @@ def extract_chunk(
 
 CONTENT:
 
-{markdown_chunk}
+{content}
 """
 
         response = groq_completion(
-            prompt=prompt
+            prompt
         )
 
         result = extract_json(
@@ -107,15 +106,17 @@ def merge_results(
 # =====================================================
 
 def extract_college_details(
-    markdown: str
+    content: str
 ) -> Dict:
 
-    if not markdown:
+    if not content:
 
-        return DEFAULT_COLLEGE_SCHEMA.copy()
+        return (
+            DEFAULT_COLLEGE_SCHEMA.copy()
+        )
 
-    markdown = clean_markdown(
-        markdown
+    content = clean_text(
+        content
     )
 
     # -------------------------------------
@@ -123,37 +124,41 @@ def extract_college_details(
     # -------------------------------------
 
     regex_data = extract_regex_information(
-        markdown
+        content
     )
 
     # -------------------------------------
-    # CHUNKING
+    # CHUNK CONTENT
     # -------------------------------------
 
     chunks = chunk_markdown(
-        markdown
+        content
     )
 
     chunk_results = []
 
-    # -------------------------------------
-    # PROCESS CHUNKS
-    # -------------------------------------
-
     for chunk in chunks:
 
-        result = extract_chunk(
-            chunk
-        )
+        try:
 
-        if result:
+            result = extract_chunk(
+                chunk
+            )
 
-            chunk_results.append(
-                result
+            if result:
+
+                chunk_results.append(
+                    result
+                )
+
+        except Exception as e:
+
+            print(
+                f"Chunk Error: {e}"
             )
 
     # -------------------------------------
-    # MERGE CHUNK OUTPUTS
+    # MERGE LLM OUTPUTS
     # -------------------------------------
 
     llm_data = merge_json_results(
@@ -161,7 +166,7 @@ def extract_college_details(
     )
 
     # -------------------------------------
-    # CREATE FINAL OBJECT
+    # FINAL OUTPUT
     # -------------------------------------
 
     final_data = (
@@ -190,34 +195,181 @@ def extract_college_details(
 # =====================================================
 
 def extract_multiple_colleges(
-    markdown_list: List[str]
-) -> List[Dict]:
+    contents: List[str]
+):
 
     results = []
 
-    for markdown in markdown_list:
+    total = len(contents)
+
+    for idx, content in enumerate(
+        contents
+    ):
 
         try:
 
-            data = extract_college_details(
-                markdown
+            result = extract_college_details(
+                content
             )
 
             results.append(
-                data
+                result
+            )
+
+            print(
+                f"Processed {idx+1}/{total}"
             )
 
         except Exception as e:
 
             print(
-                f"Bulk Extraction Error: {e}"
+                f"Extraction Error: {e}"
             )
 
     return results
 
 
 # =====================================================
-# SAVE JSON OUTPUT
+# PLACEMENT EXTRACTION
+# =====================================================
+
+def extract_placement_info(
+    content: str
+):
+
+    prompt = f"""
+Extract placement information.
+
+Return JSON only.
+
+Schema:
+
+{{
+    "placement_percentage":"",
+    "highest_package":"",
+    "average_package":"",
+    "recruiters":[]
+}}
+
+CONTENT:
+
+{content}
+"""
+
+    response = groq_completion(
+        prompt
+    )
+
+    return extract_json(
+        response
+    )
+
+
+# =====================================================
+# ACCREDITATION EXTRACTION
+# =====================================================
+
+def extract_accreditation_info(
+    content: str
+):
+
+    prompt = f"""
+Extract accreditation details.
+
+Return JSON only.
+
+Schema:
+
+{{
+    "naac_grade":"",
+    "nba_status":"",
+    "nirf_rank":""
+}}
+
+CONTENT:
+
+{content}
+"""
+
+    response = groq_completion(
+        prompt
+    )
+
+    return extract_json(
+        response
+    )
+
+
+# =====================================================
+# COURSE EXTRACTION
+# =====================================================
+
+def extract_course_info(
+    content: str
+):
+
+    prompt = f"""
+Extract courses offered.
+
+Return JSON only.
+
+Schema:
+
+{{
+    "courses":[]
+}}
+
+CONTENT:
+
+{content}
+"""
+
+    response = groq_completion(
+        prompt
+    )
+
+    return extract_json(
+        response
+    )
+
+
+# =====================================================
+# RESEARCH EXTRACTION
+# =====================================================
+
+def extract_research_info(
+    content: str
+):
+
+    prompt = f"""
+Extract research information.
+
+Return JSON only.
+
+Schema:
+
+{{
+    "research_centers":[],
+    "patents":"",
+    "publications":""
+}}
+
+CONTENT:
+
+{content}
+"""
+
+    response = groq_completion(
+        prompt
+    )
+
+    return extract_json(
+        response
+    )
+
+
+# =====================================================
+# SAVE RESULT
 # =====================================================
 
 def save_extraction_result(
@@ -232,144 +384,60 @@ def save_extraction_result(
     ) as f:
 
         json.dump(
+
             result,
+
             f,
+
             indent=4,
+
             ensure_ascii=False
+
         )
 
 
 # =====================================================
-# EXTRACT PLACEMENT DATA
-# =====================================================
-
-def extract_placement_info(
-    markdown: str
-) -> Dict:
-
-    prompt = f"""
-Extract placement related information.
-
-Return JSON only.
-
-Fields:
-
-highest_package
-average_package
-placement_percentage
-recruiters
-
-CONTENT:
-
-{markdown}
-"""
-
-    response = groq_completion(
-        prompt
-    )
-
-    return extract_json(
-        response
-    )
-
-
-# =====================================================
-# EXTRACT ACCREDITATION DATA
-# =====================================================
-
-def extract_accreditation_info(
-    markdown: str
-) -> Dict:
-
-    prompt = f"""
-Extract accreditation information.
-
-Return JSON only.
-
-Fields:
-
-naac_grade
-nba_status
-nirf_rank
-
-CONTENT:
-
-{markdown}
-"""
-
-    response = groq_completion(
-        prompt
-    )
-
-    return extract_json(
-        response
-    )
-
-
-# =====================================================
-# EXTRACT COURSE DATA
-# =====================================================
-
-def extract_course_info(
-    markdown: str
-) -> Dict:
-
-    prompt = f"""
-Extract courses offered.
-
-Return JSON only.
-
-Fields:
-
-courses
-
-CONTENT:
-
-{markdown}
-"""
-
-    response = groq_completion(
-        prompt
-    )
-
-    return extract_json(
-        response
-    )
-
-
-# =====================================================
-# DEBUG
+# TEST
 # =====================================================
 
 if __name__ == "__main__":
 
-    sample_markdown = """
+    sample_content = """
 
-# RV College of Engineering
+    RV College of Engineering
 
-NAAC Grade A++
+    Bengaluru
 
-NBA Accredited
+    NAAC A++
 
-Email:
-info@rvce.edu.in
+    NBA Accredited
 
-Phone:
-+91 9876543210
+    Email:
+    principal@rvce.edu.in
 
-Highest Package:
-92 LPA
+    Phone:
+    +91 9876543210
 
-Courses:
+    Highest Package:
+    92 LPA
 
-Computer Science
-Artificial Intelligence
-Information Science
+    Courses:
 
-"""
+    Computer Science
+    Artificial Intelligence
+    Mechanical Engineering
+
+    Recruiters:
+
+    Microsoft
+    Amazon
+    Infosys
+    TCS
+
+    """
 
     result = extract_college_details(
-        sample_markdown
+        sample_content
     )
 
     print(
@@ -378,4 +446,4 @@ Information Science
             indent=4
         )
     )
-  
+        
