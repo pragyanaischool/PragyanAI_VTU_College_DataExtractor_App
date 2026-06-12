@@ -13,3 +13,4 @@ asyncio
 scrapegraphai
 selenium
 webdriver-manager
+duckduckgo-search
