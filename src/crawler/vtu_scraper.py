@@ -2,46 +2,46 @@
 src/crawler/vtu_scraper.py
 
 VTU Affiliated Colleges Scraper
+Using Selenium + Chrome
+
+Author: PragyanAI
 """
 
 import re
-import requests
+import time
 import pandas as pd
 
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
 VTU_URL = "https://vtu.ac.in/affiliated-institute/"
 
-HEADERS = {
-    "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-}
 
 # =====================================================
-# DOWNLOAD PAGE
+# DRIVER
 # =====================================================
 
-def get_vtu_page():
+def create_driver():
 
-    try:
+    options = webdriver.ChromeOptions()
 
-        response = requests.get(
-            VTU_URL,
-            headers=HEADERS,
-            timeout=30
-        )
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
 
-        response.raise_for_status()
+    driver = webdriver.Chrome(
+        service=Service(
+            ChromeDriverManager().install()
+        ),
+        options=options
+    )
 
-        return response.text
+    driver.maximize_window()
 
-    except Exception as e:
-
-        print(
-            f"VTU Download Error: {e}"
-        )
-
-        return ""
+    return driver
 
 
 # =====================================================
@@ -53,17 +53,39 @@ def clean_text(text):
     if not text:
         return ""
 
-    text = re.sub(
-        r"\s+",
-        " ",
-        str(text)
-    )
+    text = re.sub(r"\s+", " ", text)
 
     return text.strip()
 
 
 # =====================================================
-# EXTRACT WEBSITE
+# EMAIL
+# =====================================================
+
+def extract_email(text):
+
+    pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+
+    match = re.search(pattern, text)
+
+    return match.group(0) if match else ""
+
+
+# =====================================================
+# PHONE
+# =====================================================
+
+def extract_phone(text):
+
+    pattern = r"(\+91[\-\s]?)?[6-9]\d{9}"
+
+    match = re.search(pattern, text)
+
+    return match.group(0) if match else ""
+
+
+# =====================================================
+# WEBSITE
 # =====================================================
 
 def extract_website(text):
@@ -76,157 +98,98 @@ def extract_website(text):
         re.IGNORECASE
     )
 
-    return (
-        match.group(0)
-        if match
-        else ""
-    )
+    return match.group(0) if match else ""
 
 
 # =====================================================
-# EXTRACT EMAIL
-# =====================================================
-
-def extract_email(text):
-
-    pattern = (
-        r"[A-Za-z0-9._%+-]+"
-        r"@[A-Za-z0-9.-]+"
-        r"\.[A-Za-z]{2,}"
-    )
-
-    match = re.search(
-        pattern,
-        text
-    )
-
-    return (
-        match.group(0)
-        if match
-        else ""
-    )
-
-
-# =====================================================
-# EXTRACT PHONE
-# =====================================================
-
-def extract_phone(text):
-
-    pattern = (
-        r"(\+91[\-\s]?)?"
-        r"[6-9]\d{9}"
-    )
-
-    match = re.search(
-        pattern,
-        text
-    )
-
-    return (
-        match.group(0)
-        if match
-        else ""
-    )
-
-
-# =====================================================
-# SCRAPE COLLEGES
+# SCRAPE VTU
 # =====================================================
 
 def scrape_vtu_colleges():
 
-    html = get_vtu_page()
-
-    if not html:
-
-        return []
-
-    soup = BeautifulSoup(
-        html,
-        "html.parser"
-    )
+    driver = create_driver()
 
     colleges = []
 
-    # -------------------------------------------------
-    # Get all text blocks
-    # -------------------------------------------------
+    try:
 
-    blocks = soup.find_all(
-        ["p", "div", "li"]
-    )
+        print("Opening VTU Website...")
 
-    for block in blocks:
+        driver.get(VTU_URL)
 
-        text = clean_text(
-            block.get_text(
-                " ",
-                strip=True
+        time.sleep(5)
+
+        body_text = driver.find_element(
+            By.TAG_NAME,
+            "body"
+        ).text
+
+        lines = body_text.split("\n")
+
+        for line in lines:
+
+            line = clean_text(line)
+
+            if len(line) < 15:
+                continue
+
+            keywords = [
+
+                "college",
+
+                "engineering",
+
+                "technology",
+
+                "institute"
+
+            ]
+
+            if not any(
+                word in line.lower()
+                for word in keywords
+            ):
+                continue
+
+            college = {
+
+                "college_code": "",
+
+                "college_name": line,
+
+                "district": "",
+
+                "website": extract_website(
+                    line
+                ),
+
+                "email": extract_email(
+                    line
+                ),
+
+                "phone": extract_phone(
+                    line
+                )
+
+            }
+
+            colleges.append(
+                college
             )
+
+    except Exception as e:
+
+        print(
+            f"Scraping Error: {e}"
         )
 
-        if len(text) < 25:
-            continue
+    finally:
 
-        # engineering institutes
-        keywords = [
+        driver.quit()
 
-            "engineering",
-
-            "technology",
-
-            "institute",
-
-            "college"
-
-        ]
-
-        if not any(
-            k.lower() in text.lower()
-            for k in keywords
-        ):
-            continue
-
-        website = extract_website(
-            text
-        )
-
-        email = extract_email(
-            text
-        )
-
-        phone = extract_phone(
-            text
-        )
-
-        college = {
-
-            "college_code": "",
-
-            "college_name":
-                text[:150],
-
-            "district": "",
-
-            "website":
-                website,
-
-            "email":
-                email,
-
-            "phone":
-                phone
-
-        }
-
-        colleges.append(
-            college
-        )
-
-    # -------------------------------------------------
-    # Remove duplicates
-    # -------------------------------------------------
+    # ----------------------------------
+    # Remove Duplicates
+    # ----------------------------------
 
     unique = []
 
@@ -282,33 +245,57 @@ def save_colleges_csv(
 
 
 # =====================================================
+# SEARCH COLLEGE
+# =====================================================
+
+def search_college(
+    keyword
+):
+
+    df = get_colleges_dataframe()
+
+    if df.empty:
+
+        return df
+
+    keyword = keyword.lower()
+
+    return df[
+        df["college_name"]
+        .str.lower()
+        .str.contains(
+            keyword,
+            na=False
+        )
+    ]
+
+
+# =====================================================
 # TEST
 # =====================================================
 
 if __name__ == "__main__":
 
+    print("\nCollecting VTU Colleges...\n")
+
     colleges = scrape_vtu_colleges()
 
-    print()
-
     print(
-        f"Colleges Found: {len(colleges)}"
+        f"Found: {len(colleges)} Colleges"
     )
-
-    print()
-
-    if colleges:
-
-        print(
-            colleges[:5]
-        )
 
     df = pd.DataFrame(
         colleges
     )
 
-    print()
+    print(df.head())
+
+    df.to_csv(
+        "vtu_colleges.csv",
+        index=False
+    )
 
     print(
-        df.head()
+        "\nSaved: vtu_colleges.csv"
     )
+    
