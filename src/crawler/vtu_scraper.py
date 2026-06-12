@@ -2,91 +2,63 @@
 src/crawler/vtu_scraper.py
 
 VTU Affiliated Colleges Scraper
-Using Selenium + Chrome
-
-Author: PragyanAI
 """
 
 import re
-import time
+import requests
 import pandas as pd
-
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
 
 VTU_URL = "https://vtu.ac.in/affiliated-institute/"
 
-
-# =====================================================
-# DRIVER
-# =====================================================
-
-def create_driver():
-
-    options = webdriver.ChromeOptions()
-
-    options.add_argument("--headless=new")
-    options.add_argument("--disable-gpu")
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-dev-shm-usage")
-
-    driver = webdriver.Chrome(
-        service=Service(
-            ChromeDriverManager().install()
-        ),
-        options=options
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 "
+        "(Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 "
+        "(KHTML, like Gecko) "
+        "Chrome/125.0 Safari/537.36"
     )
+}
 
-    driver.maximize_window()
-
-    return driver
-
-
-# =====================================================
-# CLEAN TEXT
-# =====================================================
 
 def clean_text(text):
 
     if not text:
         return ""
 
-    text = re.sub(r"\s+", " ", text)
+    text = re.sub(
+        r"\s+",
+        " ",
+        str(text)
+    )
 
     return text.strip()
 
-
-# =====================================================
-# EMAIL
-# =====================================================
 
 def extract_email(text):
 
     pattern = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
 
-    match = re.search(pattern, text)
+    match = re.search(
+        pattern,
+        text
+    )
 
     return match.group(0) if match else ""
 
-
-# =====================================================
-# PHONE
-# =====================================================
 
 def extract_phone(text):
 
     pattern = r"(\+91[\-\s]?)?[6-9]\d{9}"
 
-    match = re.search(pattern, text)
+    match = re.search(
+        pattern,
+        text
+    )
 
     return match.group(0) if match else ""
 
-
-# =====================================================
-# WEBSITE
-# =====================================================
 
 def extract_website(text):
 
@@ -101,30 +73,30 @@ def extract_website(text):
     return match.group(0) if match else ""
 
 
-# =====================================================
-# SCRAPE VTU
-# =====================================================
-
 def scrape_vtu_colleges():
-
-    driver = create_driver()
 
     colleges = []
 
     try:
 
-        print("Opening VTU Website...")
+        response = requests.get(
+            VTU_URL,
+            headers=HEADERS,
+            timeout=30
+        )
 
-        driver.get(VTU_URL)
+        response.raise_for_status()
 
-        time.sleep(5)
+        soup = BeautifulSoup(
+            response.text,
+            "html.parser"
+        )
 
-        body_text = driver.find_element(
-            By.TAG_NAME,
-            "body"
-        ).text
+        text = soup.get_text(
+            separator="\n"
+        )
 
-        lines = body_text.split("\n")
+        lines = text.split("\n")
 
         for line in lines:
 
@@ -136,11 +108,8 @@ def scrape_vtu_colleges():
             keywords = [
 
                 "college",
-
                 "engineering",
-
                 "technology",
-
                 "institute"
 
             ]
@@ -151,7 +120,7 @@ def scrape_vtu_colleges():
             ):
                 continue
 
-            college = {
+            colleges.append({
 
                 "college_code": "",
 
@@ -171,51 +140,38 @@ def scrape_vtu_colleges():
                     line
                 )
 
-            }
+            })
 
-            colleges.append(
+        # Remove duplicates
+
+        unique = []
+        seen = set()
+
+        for college in colleges:
+
+            name = college[
+                "college_name"
+            ]
+
+            if name in seen:
+                continue
+
+            seen.add(name)
+
+            unique.append(
                 college
             )
+
+        return unique
 
     except Exception as e:
 
         print(
-            f"Scraping Error: {e}"
+            f"VTU Scraper Error: {e}"
         )
 
-    finally:
+        return []
 
-        driver.quit()
-
-    # ----------------------------------
-    # Remove Duplicates
-    # ----------------------------------
-
-    unique = []
-
-    seen = set()
-
-    for college in colleges:
-
-        name = college[
-            "college_name"
-        ]
-
-        if name in seen:
-            continue
-
-        seen.add(name)
-
-        unique.append(
-            college
-        )
-
-    return unique
-
-
-# =====================================================
-# DATAFRAME
-# =====================================================
 
 def get_colleges_dataframe():
 
@@ -225,10 +181,6 @@ def get_colleges_dataframe():
         colleges
     )
 
-
-# =====================================================
-# SAVE CSV
-# =====================================================
 
 def save_colleges_csv(
     filepath
@@ -244,58 +196,15 @@ def save_colleges_csv(
     return filepath
 
 
-# =====================================================
-# SEARCH COLLEGE
-# =====================================================
-
-def search_college(
-    keyword
-):
-
-    df = get_colleges_dataframe()
-
-    if df.empty:
-
-        return df
-
-    keyword = keyword.lower()
-
-    return df[
-        df["college_name"]
-        .str.lower()
-        .str.contains(
-            keyword,
-            na=False
-        )
-    ]
-
-
-# =====================================================
-# TEST
-# =====================================================
-
 if __name__ == "__main__":
-
-    print("\nCollecting VTU Colleges...\n")
 
     colleges = scrape_vtu_colleges()
 
     print(
-        f"Found: {len(colleges)} Colleges"
-    )
-
-    df = pd.DataFrame(
-        colleges
-    )
-
-    print(df.head())
-
-    df.to_csv(
-        "vtu_colleges.csv",
-        index=False
+        f"Found {len(colleges)} colleges"
     )
 
     print(
-        "\nSaved: vtu_colleges.csv"
+        colleges[:5]
     )
     
