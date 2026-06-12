@@ -11,3 +11,5 @@ python-dotenv
 aiohttp
 asyncio
 scrapegraphai
+selenium
+webdriver-manager
