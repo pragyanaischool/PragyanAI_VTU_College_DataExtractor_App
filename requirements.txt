@@ -8,7 +8,7 @@ sqlalchemy
 plotly
 openpyxl
 groq
-crawl4ai
+crawl4ai==0.6.3
 python-dotenv
 aiohttp
 asyncio
