@@ -1,27 +1,37 @@
+"""
+pages/1_Collect_Colleges.py
+
+VTU College Collector
+"""
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
 
-from src.crawler.vtu_scraper import scrape_vtu_colleges
+from src.crawler.vtu_scraper import (
+    scrape_vtu_colleges,
+    get_colleges_dataframe
+)
+
 from src.database.crud import (
     save_colleges,
     get_all_colleges,
     delete_all_colleges
 )
 
-# ---------------------------------------
+# =====================================================
 # PAGE CONFIG
-# ---------------------------------------
+# =====================================================
 
 st.set_page_config(
-    page_title="VTU College Collector",
+    page_title="Collect Colleges",
     page_icon="🏫",
     layout="wide"
 )
 
-# ---------------------------------------
-# TITLE
-# ---------------------------------------
+# =====================================================
+# HEADER
+# =====================================================
 
 st.title("🏫 VTU College Collector")
 
@@ -29,121 +39,162 @@ st.markdown("""
 Collect all affiliated colleges from VTU website and store them in SQLite Database.
 """)
 
-# ---------------------------------------
-# SIDEBAR
-# ---------------------------------------
+# =====================================================
+# LAST UPDATED
+# =====================================================
 
-st.sidebar.header("Options")
+st.info(
+    f"Last Updated: {datetime.now().strftime('%d-%m-%Y')}"
+)
 
-refresh_data = st.sidebar.button("🔄 Refresh VTU Data")
+# =====================================================
+# ACTION BUTTONS
+# =====================================================
 
-clear_db = st.sidebar.button("🗑 Clear Database")
+col1, col2, col3 = st.columns(3)
 
-# ---------------------------------------
-# CLEAR DATABASE
-# ---------------------------------------
-
-if clear_db:
-
-    delete_all_colleges()
-
-    st.success("Database Cleared Successfully")
-
-    st.rerun()
-
-# ---------------------------------------
-# COLLECT COLLEGES
-# ---------------------------------------
-
-col1, col2 = st.columns([2, 1])
+# -----------------------------------------------------
 
 with col1:
 
     if st.button(
-        "🚀 Collect Colleges from VTU",
+        "🚀 Collect Colleges",
         use_container_width=True
     ):
 
-        with st.spinner("Collecting colleges..."):
+        with st.spinner(
+            "Collecting colleges from VTU..."
+        ):
 
             try:
 
-                df = scrape_vtu_colleges()
+                colleges = scrape_vtu_colleges()
 
-                if df.empty:
+                st.write(
+                    f"Records Found: {len(colleges)}"
+                )
+
+                if len(colleges) == 0:
 
                     st.error(
-                        "No colleges found."
+                        "No colleges found. Check scraper."
                     )
 
                 else:
 
-                    save_colleges(df)
-
-                    st.success(
-                        f"{len(df)} Colleges Collected Successfully"
+                    df = pd.DataFrame(
+                        colleges
                     )
 
-                    st.session_state["colleges"] = df
+                    # Clear existing data
+                    delete_all_colleges()
+
+                    # Save fresh data
+                    save_colleges(df)
+
+                    # Save CSV
+                    df.to_csv(
+                        "data/colleges.csv",
+                        index=False
+                    )
+
+                    st.success(
+                        f"Successfully collected {len(df)} colleges."
+                    )
 
             except Exception as e:
 
-                st.error(str(e))
+                st.error(
+                    f"Error: {e}"
+                )
+
+# -----------------------------------------------------
 
 with col2:
 
-    st.metric(
-        "Last Updated",
-        datetime.now().strftime("%d-%m-%Y")
-    )
+    if st.button(
+        "🔄 Refresh Database",
+        use_container_width=True
+    ):
 
-# ---------------------------------------
-# LOAD DATABASE DATA
-# ---------------------------------------
+        try:
+
+            colleges = scrape_vtu_colleges()
+
+            df = pd.DataFrame(
+                colleges
+            )
+
+            delete_all_colleges()
+
+            save_colleges(df)
+
+            st.success(
+                "Database Refreshed."
+            )
+
+        except Exception as e:
+
+            st.error(str(e))
+
+# -----------------------------------------------------
+
+with col3:
+
+    if st.button(
+        "🗑 Clear Database",
+        use_container_width=True
+    ):
+
+        try:
+
+            delete_all_colleges()
+
+            st.success(
+                "College Table Cleared."
+            )
+
+        except Exception as e:
+
+            st.error(str(e))
+
+# =====================================================
+# LOAD DATABASE
+# =====================================================
 
 try:
 
-    db_df = get_all_colleges()
+    df = get_all_colleges()
 
-except:
+except Exception:
 
-    db_df = pd.DataFrame()
+    df = pd.DataFrame()
 
-# ---------------------------------------
-# SUMMARY
-# ---------------------------------------
+# =====================================================
+# METRICS
+# =====================================================
 
-if not db_df.empty:
+st.markdown("---")
 
-    c1, c2, c3 = st.columns(3)
+c1, c2 = st.columns(2)
 
-    c1.metric(
-        "Total Colleges",
-        len(db_df)
-    )
+c1.metric(
+    "Total Colleges",
+    len(df)
+)
 
-    if "district" in db_df.columns:
+c2.metric(
+    "Columns",
+    len(df.columns)
+    if not df.empty
+    else 0
+)
 
-        c2.metric(
-            "Districts",
-            db_df["district"].nunique()
-        )
-
-    else:
-
-        c2.metric(
-            "Districts",
-            0
-        )
-
-    c3.metric(
-        "Records",
-        len(db_df)
-    )
-
-# ---------------------------------------
+# =====================================================
 # SEARCH
-# ---------------------------------------
+# =====================================================
+
+st.markdown("---")
 
 st.subheader("🔍 Search Colleges")
 
@@ -151,81 +202,123 @@ search_text = st.text_input(
     "Enter College Name"
 )
 
-if not db_df.empty:
+filtered_df = df.copy()
 
-    if search_text:
+if search_text:
 
-        filtered_df = db_df[
-            db_df["college_name"]
-            .str.contains(
-                search_text,
-                case=False,
-                na=False
-            )
+    filtered_df = filtered_df[
+
+        filtered_df[
+            "college_name"
         ]
 
-    else:
+        .astype(str)
 
-        filtered_df = db_df
+        .str.contains(
 
-else:
+            search_text,
 
-    filtered_df = pd.DataFrame()
+            case=False,
 
-# ---------------------------------------
-# DISPLAY DATA
-# ---------------------------------------
+            na=False
+
+        )
+
+    ]
+
+# =====================================================
+# DATA TABLE
+# =====================================================
 
 st.subheader("📋 VTU Colleges")
 
 if not filtered_df.empty:
 
     st.dataframe(
+
         filtered_df,
+
         use_container_width=True,
+
         height=600
+
+    )
+
+else:
+
+    st.warning(
+        "No colleges found."
+    )
+
+# =====================================================
+# DOWNLOAD CSV
+# =====================================================
+
+if not df.empty:
+
+    st.download_button(
+
+        label="⬇ Download CSV",
+
+        data=df.to_csv(
+            index=False
+        ),
+
+        file_name=
+        "vtu_colleges.csv",
+
+        mime="text/csv"
+
+    )
+
+# =====================================================
+# PREVIEW
+# =====================================================
+
+st.markdown("---")
+
+st.subheader("📊 Data Preview")
+
+if not df.empty:
+
+    st.write(
+        df.head()
     )
 
 else:
 
     st.info(
-        "No college data available."
+        "Collect colleges first."
     )
 
-# ---------------------------------------
-# DOWNLOAD CSV
-# ---------------------------------------
+# =====================================================
+# DEBUG
+# =====================================================
 
-if not filtered_df.empty:
+with st.expander(
+    "⚙ Debug Information"
+):
 
-    csv = filtered_df.to_csv(
-        index=False
+    st.write(
+        "Database Records:",
+        len(df)
     )
 
-    st.download_button(
-        label="⬇ Download CSV",
-        data=csv,
-        file_name="vtu_colleges.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    if not df.empty:
 
-# ---------------------------------------
-# RAW DATA
-# ---------------------------------------
+        st.write(
+            "Columns:"
+        )
 
-with st.expander("View Raw Data"):
+        st.write(
+            list(df.columns)
+        )
 
-    if not filtered_df.empty:
+        st.write(
+            "Sample:"
+        )
 
-        st.write(filtered_df)
-
-# ---------------------------------------
-# FOOTER
-# ---------------------------------------
-
-st.markdown("---")
-
-st.caption(
-    "VTU College Intelligence Platform | College Collector Module"
-)
+        st.json(
+            df.iloc[0].to_dict()
+        )
+        
