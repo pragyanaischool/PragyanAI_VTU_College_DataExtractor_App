@@ -5,6 +5,41 @@ from sqlalchemy import text
 
 from src.database.db import engine
 
+def update_college_website(
+    college_code,
+    website
+):
+
+    try:
+
+        with engine.begin() as conn:
+
+            conn.execute(
+
+                text(
+                    """
+                    UPDATE colleges
+                    SET website=:website
+                    WHERE college_code=:college_code
+                    """
+                ),
+
+                {
+                    "website": website,
+                    "college_code": college_code
+                }
+
+            )
+
+        return True
+
+    except Exception as e:
+
+        print(
+            f"update_college_website Error: {e}"
+        )
+
+        return False
 
 # ==========================================================
 # COLLEGES
