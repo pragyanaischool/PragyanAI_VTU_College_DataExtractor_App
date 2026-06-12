@@ -3,7 +3,7 @@ pandas
 numpy
 requests
 beautifulsoup4
-lxml
+lxml>=5.2.2
 sqlalchemy
 plotly
 openpyxl
