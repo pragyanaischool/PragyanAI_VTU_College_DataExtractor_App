@@ -1,22 +1,21 @@
 """
 src/extraction/parser.py
 
-Parser Utilities for:
+Parser Utilities
 
-1. Crawl4AI Markdown Processing
-2. GROQ Input Preparation
+Used For:
+
+1. Website Content Cleaning
+2. Text Chunking
 3. JSON Extraction
-4. Schema Validation
+4. JSON Validation
+5. GROQ Response Parsing
 """
 
-import re
 import json
-from typing import Dict, List
+import re
 
-from src.utils.helpers import (
-    normalize_text,
-    safe_json_loads
-)
+from typing import Dict, List
 
 from src.utils.config import (
     MAX_CHUNK_SIZE,
@@ -26,27 +25,20 @@ from src.utils.config import (
 )
 
 # =====================================================
-# TEXT CLEANER
+# CLEAN TEXT
 # =====================================================
 
-def clean_text(text: str) -> str:
+def clean_text(
+    text: str
+) -> str:
 
     if not text:
+
         return ""
 
-    text = normalize_text(text)
+    text = str(text)
 
-    text = re.sub(
-        r"\n{2,}",
-        "\n",
-        text
-    )
-
-    text = re.sub(
-        r"\t+",
-        " ",
-        text
-    )
+    # remove extra spaces
 
     text = re.sub(
         r"\s+",
@@ -54,90 +46,70 @@ def clean_text(text: str) -> str:
         text
     )
 
+    # remove multiple new lines
+
+    text = re.sub(
+        r"\n+",
+        "\n",
+        text
+    )
+
     return text.strip()
 
 
 # =====================================================
-# MARKDOWN CLEANER
+# CLEAN CONTENT
 # =====================================================
 
-def clean_markdown(markdown: str) -> str:
+def clean_content(
+    content: str
+) -> str:
 
-    if not markdown:
+    if not content:
+
         return ""
 
-    markdown = str(markdown)
-
-    # Remove images
-
-    markdown = re.sub(
-        r"!\[.*?\]\(.*?\)",
-        "",
-        markdown
+    content = clean_text(
+        content
     )
 
-    # Convert markdown links
+    if len(content) > MAX_MARKDOWN_LENGTH:
 
-    markdown = re.sub(
-        r"\[(.*?)\]\((.*?)\)",
-        r"\1",
-        markdown
-    )
-
-    # Remove code blocks
-
-    markdown = re.sub(
-        r"```.*?```",
-        "",
-        markdown,
-        flags=re.DOTALL
-    )
-
-    markdown = clean_text(
-        markdown
-    )
-
-    if len(markdown) > MAX_MARKDOWN_LENGTH:
-
-        markdown = markdown[
+        content = content[
             :MAX_MARKDOWN_LENGTH
         ]
 
-    return markdown
+    return content
 
 
 # =====================================================
-# CHUNK MARKDOWN
+# CHUNK CONTENT
 # =====================================================
 
 def chunk_markdown(
-    markdown: str,
+    content: str,
     chunk_size: int = MAX_CHUNK_SIZE,
     overlap: int = CHUNK_OVERLAP
 ) -> List[str]:
 
-    markdown = clean_markdown(
-        markdown
+    content = clean_content(
+        content
     )
 
-    if len(markdown) <= chunk_size:
+    if len(content) <= chunk_size:
 
-        return [markdown]
+        return [content]
 
     chunks = []
 
     start = 0
 
-    while start < len(markdown):
+    while start < len(content):
 
         end = start + chunk_size
 
-        chunk = markdown[
-            start:end
-        ]
-
         chunks.append(
-            chunk
+            content[start:end]
         )
 
         start += (
@@ -148,32 +120,42 @@ def chunk_markdown(
 
 
 # =====================================================
-# EXTRACT JSON FROM LLM RESPONSE
+# EXTRACT JSON FROM RESPONSE
 # =====================================================
 
 def extract_json(
-    text: str
+    response_text: str
 ) -> Dict:
 
-    if not text:
+    if not response_text:
 
         return {}
 
     try:
 
-        start = text.find("{")
+        response_text = response_text.strip()
 
-        end = text.rfind("}")
+        # remove markdown
 
-        if start == -1:
+        response_text = response_text.replace(
+            "```json",
+            ""
+        )
+
+        response_text = response_text.replace(
+            "```",
+            ""
+        )
+
+        start = response_text.find("{")
+
+        end = response_text.rfind("}")
+
+        if start == -1 or end == -1:
 
             return {}
 
-        if end == -1:
-
-            return {}
-
-        json_text = text[
+        json_text = response_text[
             start:end + 1
         ]
 
@@ -187,12 +169,12 @@ def extract_json(
 
 
 # =====================================================
-# SAFE JSON PARSER
+# SAFE JSON PARSE
 # =====================================================
 
 def safe_parse_json(
     text: str
-) -> Dict:
+):
 
     try:
 
@@ -204,20 +186,23 @@ def safe_parse_json(
 
 
 # =====================================================
-# VALIDATE COLLEGE JSON
+# VALIDATE OUTPUT
 # =====================================================
 
 def validate_college_json(
     data: Dict
 ) -> Dict:
 
-    if not data:
-
-        data = {}
-
     validated = (
         DEFAULT_COLLEGE_SCHEMA.copy()
     )
+
+    if not isinstance(
+        data,
+        dict
+    ):
+
+        return validated
 
     for key in validated.keys():
 
@@ -229,91 +214,105 @@ def validate_college_json(
 
 
 # =====================================================
-# MERGE MULTIPLE JSONS
+# MERGE MULTIPLE RESULTS
 # =====================================================
 
 def merge_json_results(
     results: List[Dict]
 ) -> Dict:
 
-    merged = (
-        DEFAULT_COLLEGE_SCHEMA.copy()
-    )
+    merged = {}
 
     for result in results:
 
+        if not isinstance(
+            result,
+            dict
+        ):
+
+            continue
+
         for key, value in result.items():
 
-            if value:
+            if value is None:
+                continue
 
-                merged[key] = value
+            if value == "":
+                continue
+
+            if value == []:
+                continue
+
+            merged[key] = value
 
     return merged
 
 
 # =====================================================
-# EXTRACT TITLE
+# TITLE EXTRACTION
 # =====================================================
 
 def extract_title(
-    markdown: str
-) -> str:
+    content: str
+):
 
-    lines = markdown.split("\n")
+    if not content:
 
-    for line in lines:
+        return ""
+
+    lines = content.split("\n")
+
+    for line in lines[:20]:
 
         line = line.strip()
 
-        if line.startswith("#"):
+        if len(line) > 5:
 
-            return line.replace(
-                "#",
-                ""
-            ).strip()
+            return line
 
     return ""
 
 
 # =====================================================
-# EXTRACT EMAIL BLOCKS
+# CONTACT BLOCK
 # =====================================================
 
 def extract_contact_section(
-    markdown: str
-) -> str:
+    content: str
+):
 
     keywords = [
 
         "contact",
-        "contact us",
-        "reach us",
+        "phone",
         "email",
-        "phone"
+        "address",
+        "reach us"
 
     ]
 
-    lines = markdown.split(
-        "\n"
-    )
+    lines = content.split("\n")
 
-    result = []
+    matched = []
 
     for line in lines:
 
         lower = line.lower()
 
         if any(
-            k in lower
-            for k in keywords
+
+            keyword in lower
+
+            for keyword in keywords
+
         ):
 
-            result.append(
+            matched.append(
                 line
             )
 
     return "\n".join(
-        result
+        matched
     )
 
 
@@ -324,7 +323,7 @@ def extract_contact_section(
 def truncate_text(
     text: str,
     max_length: int = 5000
-) -> str:
+):
 
     if not text:
 
@@ -335,103 +334,138 @@ def truncate_text(
         return text
 
     return (
+
         text[:max_length]
+
         + " ..."
+
     )
 
 
 # =====================================================
-# EXTRACT IMPORTANT SECTIONS
+# SECTION DETECTOR
 # =====================================================
 
 def extract_key_sections(
-    markdown: str
-) -> Dict:
+    content: str
+):
 
     sections = {
 
-        "about": "",
+        "about": False,
 
-        "placement": "",
+        "placement": False,
 
-        "admission": "",
+        "admission": False,
 
-        "contact": ""
+        "research": False,
+
+        "contact": False
 
     }
 
-    text = markdown.lower()
-
-    if "placement" in text:
-
-        sections[
-            "placement"
-        ] = "Found"
-
-    if "admission" in text:
-
-        sections[
-            "admission"
-        ] = "Found"
+    text = content.lower()
 
     if "about" in text:
 
-        sections[
-            "about"
-        ] = "Found"
+        sections["about"] = True
+
+    if "placement" in text:
+
+        sections["placement"] = True
+
+    if "admission" in text:
+
+        sections["admission"] = True
+
+    if "research" in text:
+
+        sections["research"] = True
 
     if "contact" in text:
 
-        sections[
-            "contact"
-        ] = "Found"
+        sections["contact"] = True
 
     return sections
 
 
 # =====================================================
-# DEBUG
+# CONTENT STATISTICS
+# =====================================================
+
+def content_statistics(
+    content: str
+):
+
+    if not content:
+
+        return {}
+
+    return {
+
+        "characters":
+            len(content),
+
+        "words":
+            len(
+                content.split()
+            ),
+
+        "chunks":
+            len(
+                chunk_markdown(
+                    content
+                )
+            )
+
+    }
+
+
+# =====================================================
+# TEST
 # =====================================================
 
 if __name__ == "__main__":
 
     sample = """
 
-# RV College of Engineering
+    RV College of Engineering
 
-NAAC A++
+    Bengaluru
 
-Contact:
-info@rvce.edu.in
+    NAAC A++
 
-Placements:
-Highest Package 92 LPA
+    Email:
+    principal@rvce.edu.in
 
-"""
+    Phone:
+    +91 9876543210
+
+    """
+
+    print()
 
     print(
-        clean_markdown(
+        content_statistics(
             sample
         )
     )
 
+    print()
+
     print(
         chunk_markdown(
             sample,
-            100,
-            20
+            50,
+            10
         )
     )
+
+    print()
 
     print(
         extract_title(
             sample
         )
     )
-
-    print(
-        extract_key_sections(
-            sample
-        )
-    )
-  
+    
