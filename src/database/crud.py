@@ -1,19 +1,18 @@
 """
 src/database/crud.py
 
-Database CRUD Operations
+CRUD Operations for VTU College Intelligence
 """
 
 import pandas as pd
 
 from sqlalchemy import text
 
-from src.database.db import (
-    engine
-)
+from src.database.db import engine
+
 
 # =====================================================
-# COLLEGES TABLE
+# COLLEGES
 # =====================================================
 
 def save_colleges(df):
@@ -33,79 +32,70 @@ def get_all_colleges():
 
     try:
 
-        query = """
-        SELECT *
-        FROM colleges
-        ORDER BY college_name
-        """
-
         return pd.read_sql(
-            query,
+            """
+            SELECT *
+            FROM colleges
+            ORDER BY college_name
+            """,
             engine
         )
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            f"get_all_colleges Error: {e}"
+        )
 
         return pd.DataFrame()
 
 
-def get_college_by_id(
-    record_id
-):
+def delete_all_colleges():
 
     try:
 
-        query = f"""
+        with engine.begin() as conn:
 
-        SELECT *
+            conn.execute(
+                text(
+                    "DELETE FROM colleges"
+                )
+            )
 
-        FROM colleges
+    except Exception as e:
 
-        WHERE id={record_id}
-
-        """
-
-        df = pd.read_sql(
-            query,
-            engine
+        print(
+            f"delete_all_colleges Error: {e}"
         )
-
-        if len(df):
-
-            return df.iloc[0].to_dict()
-
-        return {}
-
-    except Exception:
-
-        return {}
 
 
 def delete_college(
     record_id
 ):
 
-    with engine.begin() as conn:
+    try:
 
-        conn.execute(
-            text("""
-            DELETE FROM colleges
-            WHERE id=:id
-            """),
-            {
-                "id": record_id
-            }
-        )
+        with engine.begin() as conn:
 
+            conn.execute(
 
-def delete_all_colleges():
+                text(
+                    """
+                    DELETE FROM colleges
+                    WHERE id=:id
+                    """
+                ),
 
-    with engine.begin() as conn:
+                {
+                    "id": record_id
+                }
 
-        conn.execute(
-            text("""
-            DELETE FROM colleges
-            """)
+            )
+
+    except Exception as e:
+
+        print(
+            f"delete_college Error: {e}"
         )
 
 
@@ -121,114 +111,91 @@ def save_crawl_result(
     crawl_time=0
 ):
 
-    df = pd.DataFrame([{
+    try:
 
-        "college_name":
-            college_name,
+        df = pd.DataFrame([{
 
-        "website":
-            website,
+            "college_name":
+                college_name,
 
-        "title":
-            title,
+            "website":
+                website,
 
-        "markdown":
-            markdown,
+            "title":
+                title,
 
-        "crawl_time":
-            crawl_time
+            "markdown":
+                markdown,
 
-    }])
+            "crawl_time":
+                crawl_time
 
-    df.to_sql(
-        "crawl_results",
-        engine,
-        if_exists="append",
-        index=False
-    )
+        }])
+
+        df.to_sql(
+
+            "crawl_results",
+
+            engine,
+
+            if_exists="append",
+
+            index=False
+
+        )
+
+    except Exception as e:
+
+        print(
+            f"save_crawl_result Error: {e}"
+        )
 
 
 def get_crawl_results():
 
     try:
 
-        query = """
-
-        SELECT *
-
-        FROM crawl_results
-
-        ORDER BY id DESC
-
-        """
-
         return pd.read_sql(
-            query,
+
+            """
+            SELECT *
+            FROM crawl_results
+            ORDER BY id DESC
+            """,
+
             engine
+
         )
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            f"get_crawl_results Error: {e}"
+        )
 
         return pd.DataFrame()
 
 
-def get_crawl_result_by_id(
-    record_id
-):
+def delete_all_crawl_results():
 
     try:
 
-        query = f"""
+        with engine.begin() as conn:
 
-        SELECT *
+            conn.execute(
 
-        FROM crawl_results
+                text(
+                    """
+                    DELETE FROM crawl_results
+                    """
+                )
 
-        WHERE id={record_id}
+            )
 
-        """
+    except Exception as e:
 
-        df = pd.read_sql(
-            query,
-            engine
-        )
-
-        if len(df):
-
-            return df.iloc[0].to_dict()
-
-        return {}
-
-    except Exception:
-
-        return {}
-
-
-def delete_crawl_result(
-    record_id
-):
-
-    with engine.begin() as conn:
-
-        conn.execute(
-            text("""
-            DELETE FROM crawl_results
-            WHERE id=:id
-            """),
-            {
-                "id": record_id
-            }
-        )
-
-
-def delete_all_crawl_results():
-
-    with engine.begin() as conn:
-
-        conn.execute(
-            text("""
-            DELETE FROM crawl_results
-            """)
+        print(
+            f"delete_all_crawl_results Error: {e}"
         )
 
 
@@ -240,150 +207,140 @@ def save_extracted_data(
     data
 ):
 
-    if not data:
-        return
+    try:
 
-    df = pd.DataFrame(
-        [data]
-    )
+        if not data:
 
-    # Convert lists to strings
+            return
 
-    for col in df.columns:
+        df = pd.DataFrame(
+            [data]
+        )
 
-        if isinstance(
-            df.iloc[0][col],
-            list
-        ):
+        # Convert lists to text
 
-            df[col] = df[col].apply(
-                lambda x: ", ".join(
-                    map(str, x)
+        for col in df.columns:
+
+            value = df.iloc[0][col]
+
+            if isinstance(
+                value,
+                list
+            ):
+
+                df[col] = df[col].apply(
+
+                    lambda x:
+                    ", ".join(
+                        map(str, x)
+                    )
+
+                    if isinstance(
+                        x,
+                        list
+                    )
+
+                    else ""
+
                 )
-                if isinstance(x, list)
-                else ""
-            )
 
-    df.to_sql(
-        "extracted_details",
-        engine,
-        if_exists="append",
-        index=False
-    )
+        df.to_sql(
+
+            "extracted_details",
+
+            engine,
+
+            if_exists="append",
+
+            index=False
+
+        )
+
+    except Exception as e:
+
+        print(
+            f"save_extracted_data Error: {e}"
+        )
 
 
 def bulk_save_extracted_data(
     data_list
 ):
 
-    if not data_list:
-        return
+    try:
 
-    df = pd.DataFrame(
-        data_list
-    )
+        if not data_list:
 
-    df.to_sql(
-        "extracted_details",
-        engine,
-        if_exists="append",
-        index=False
-    )
+            return
+
+        df = pd.DataFrame(
+            data_list
+        )
+
+        df.to_sql(
+
+            "extracted_details",
+
+            engine,
+
+            if_exists="append",
+
+            index=False
+
+        )
+
+    except Exception as e:
+
+        print(
+            f"bulk_save_extracted_data Error: {e}"
+        )
 
 
 def get_extracted_table():
 
     try:
 
-        query = """
-
-        SELECT *
-
-        FROM extracted_details
-
-        ORDER BY id DESC
-
-        """
-
         return pd.read_sql(
-            query,
+
+            """
+            SELECT *
+            FROM extracted_details
+            ORDER BY id DESC
+            """,
+
             engine
+
         )
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            f"get_extracted_table Error: {e}"
+        )
 
         return pd.DataFrame()
 
 
-def get_extracted_record(
-    record_id
-):
+def delete_all_extracted_records():
 
     try:
 
-        query = f"""
+        with engine.begin() as conn:
 
-        SELECT *
+            conn.execute(
 
-        FROM extracted_details
+                text(
+                    """
+                    DELETE FROM extracted_details
+                    """
+                )
 
-        WHERE id={record_id}
+            )
 
-        """
+    except Exception as e:
 
-        df = pd.read_sql(
-            query,
-            engine
-        )
-
-        if len(df):
-
-            return df.iloc[0].to_dict()
-
-        return {}
-
-    except Exception:
-
-        return {}
-
-
-def update_extracted_record(
-    record_id,
-    update_data
-):
-
-    if not update_data:
-        return
-
-    fields = []
-
-    params = {
-        "id": record_id
-    }
-
-    for key, value in update_data.items():
-
-        fields.append(
-            f"{key} = :{key}"
-        )
-
-        params[key] = str(value)
-
-    query = f"""
-
-    UPDATE extracted_details
-
-    SET {', '.join(fields)}
-
-    WHERE id = :id
-
-    """
-
-    with engine.begin() as conn:
-
-        conn.execute(
-            text(query),
-            params
+        print(
+            f"delete_all_extracted_records Error: {e}"
         )
 
 
@@ -391,27 +348,29 @@ def delete_extracted_record(
     record_id
 ):
 
-    with engine.begin() as conn:
+    try:
 
-        conn.execute(
-            text("""
-            DELETE FROM extracted_details
-            WHERE id=:id
-            """),
-            {
-                "id": record_id
-            }
-        )
+        with engine.begin() as conn:
 
+            conn.execute(
 
-def delete_all_extracted_records():
+                text(
+                    """
+                    DELETE FROM extracted_details
+                    WHERE id=:id
+                    """
+                ),
 
-    with engine.begin() as conn:
+                {
+                    "id": record_id
+                }
 
-        conn.execute(
-            text("""
-            DELETE FROM extracted_details
-            """)
+            )
+
+    except Exception as e:
+
+        print(
+            f"delete_extracted_record Error: {e}"
         )
 
 
@@ -425,23 +384,21 @@ def search_colleges(
 
     try:
 
-        query = """
-
-        SELECT *
-
-        FROM extracted_details
-
-        WHERE
+        query = text(
+            """
+            SELECT *
+            FROM extracted_details
+            WHERE
             college_name LIKE :keyword
             OR district LIKE :keyword
             OR website LIKE :keyword
             OR email LIKE :keyword
-
-        """
+            """
+        )
 
         return pd.read_sql(
 
-            text(query),
+            query,
 
             engine,
 
@@ -452,44 +409,64 @@ def search_colleges(
 
         )
 
-    except Exception:
+    except Exception as e:
+
+        print(
+            f"search_colleges Error: {e}"
+        )
 
         return pd.DataFrame()
 
 
 # =====================================================
-# ANALYTICS
+# STATS
 # =====================================================
 
 def get_statistics():
 
-    stats = {}
+    stats = {
 
-    with engine.connect() as conn:
+        "colleges": 0,
 
-        stats["colleges"] = conn.execute(
+        "crawl_results": 0,
 
-            text(
-                "SELECT COUNT(*) FROM colleges"
-            )
+        "extracted_details": 0
 
-        ).scalar()
+    }
 
-        stats["crawl_results"] = conn.execute(
+    try:
 
-            text(
-                "SELECT COUNT(*) FROM crawl_results"
-            )
+        with engine.connect() as conn:
 
-        ).scalar()
+            stats["colleges"] = conn.execute(
 
-        stats["extracted_details"] = conn.execute(
+                text(
+                    "SELECT COUNT(*) FROM colleges"
+                )
 
-            text(
-                "SELECT COUNT(*) FROM extracted_details"
-            )
+            ).scalar()
 
-        ).scalar()
+            stats["crawl_results"] = conn.execute(
+
+                text(
+                    "SELECT COUNT(*) FROM crawl_results"
+                )
+
+            ).scalar()
+
+            stats["extracted_details"] = conn.execute(
+
+                text(
+                    "SELECT COUNT(*) FROM extracted_details"
+                )
+
+            ).scalar()
+
+    except Exception as e:
+
+        print(
+            f"Statistics Error: {e}"
+        )
 
     return stats
 
@@ -533,11 +510,15 @@ def database_health():
 
 if __name__ == "__main__":
 
+    print()
+
     print(
         get_statistics()
     )
 
+    print()
+
     print(
         database_health()
     )
-  
+    
