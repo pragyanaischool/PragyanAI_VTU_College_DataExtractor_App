@@ -1,413 +1,364 @@
+"""
+pages/4_Database.py
+
+Database Management
+"""
+
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+
+from src.database.db import (
+    get_database_stats,
+    get_database_info
+)
 
 from src.database.crud import (
     get_all_colleges,
     get_crawl_results,
     get_extracted_table,
-    delete_college,
-    delete_extracted_record,
-    update_extracted_record
+    delete_all_colleges,
+    delete_all_crawl_results,
+    delete_all_extracted_records,
+    search_colleges
 )
 
-# ------------------------------------
+# =====================================================
 # PAGE CONFIG
-# ------------------------------------
+# =====================================================
 
 st.set_page_config(
-    page_title="Database Manager",
+    page_title="Database",
     page_icon="🗄",
     layout="wide"
 )
 
-# ------------------------------------
-# TITLE
-# ------------------------------------
+# =====================================================
+# HEADER
+# =====================================================
 
-st.title("🗄 Database Manager")
+st.title("🗄 Database Management")
 
 st.markdown("""
-Manage VTU College Database
-
-Features:
-
-✅ View Data
-
-✅ Search
-
-✅ Filter
-
-✅ Edit Records
-
-✅ Delete Records
-
-✅ Export Current View
+View and manage SQLite database records.
 """)
 
-# ------------------------------------
-# LOAD DATA
-# ------------------------------------
+# =====================================================
+# DATABASE INFO
+# =====================================================
 
-colleges_df = get_all_colleges()
-crawl_df = get_crawl_results()
-extracted_df = get_extracted_table()
+st.subheader("📊 Database Information")
 
-# ------------------------------------
-# SUMMARY
-# ------------------------------------
+try:
 
-st.subheader("📈 Database Statistics")
+    db_info = get_database_info()
 
-c1, c2, c3 = st.columns(3)
+    col1, col2, col3 = st.columns(3)
 
-c1.metric(
-    "Colleges",
-    len(colleges_df)
-)
+    col1.metric(
+        "Database Exists",
+        "Yes" if db_info["database_exists"] else "No"
+    )
 
-c2.metric(
-    "Crawled",
-    len(crawl_df)
-)
+    col2.metric(
+        "Size (MB)",
+        db_info["database_size_mb"]
+    )
 
-c3.metric(
-    "Extracted",
-    len(extracted_df)
-)
+    col3.metric(
+        "Path",
+        "data/vtu.db"
+    )
+
+except Exception as e:
+
+    st.error(str(e))
+
+# =====================================================
+# DATABASE STATS
+# =====================================================
 
 st.markdown("---")
 
-# ------------------------------------
-# TABLE SELECTION
-# ------------------------------------
+st.subheader("📈 Table Statistics")
 
-table_option = st.selectbox(
+try:
+
+    stats = get_database_stats()
+
+    stats_df = pd.DataFrame({
+
+        "Table": list(stats.keys()),
+
+        "Records": list(stats.values())
+
+    })
+
+    st.dataframe(
+        stats_df,
+        use_container_width=True
+    )
+
+except Exception as e:
+
+    st.error(str(e))
+
+# =====================================================
+# TABLE SELECTION
+# =====================================================
+
+st.markdown("---")
+
+table_name = st.selectbox(
+
     "Select Table",
+
     [
-        "Colleges",
-        "Crawl Results",
-        "Extracted Data"
+
+        "colleges",
+
+        "crawl_results",
+
+        "extracted_details"
+
     ]
+
 )
 
-# ------------------------------------
-# CHOOSE DATAFRAME
-# ------------------------------------
+# =====================================================
+# LOAD TABLE
+# =====================================================
 
-if table_option == "Colleges":
+if table_name == "colleges":
 
-    df = colleges_df.copy()
+    df = get_all_colleges()
 
-elif table_option == "Crawl Results":
+elif table_name == "crawl_results":
 
-    df = crawl_df.copy()
+    df = get_crawl_results()
 
 else:
 
-    df = extracted_df.copy()
+    df = get_extracted_table()
 
-# ------------------------------------
-# EMPTY CHECK
-# ------------------------------------
-
-if df.empty:
-
-    st.warning(
-        "No records found."
-    )
-
-    st.stop()
-
-# ------------------------------------
+# =====================================================
 # SEARCH
-# ------------------------------------
+# =====================================================
+
+st.markdown("---")
 
 st.subheader("🔍 Search")
 
 search_text = st.text_input(
-    "Search Records"
+    "Enter keyword"
 )
 
 if search_text:
 
-    mask = pd.Series(
-        False,
-        index=df.index
-    )
-
-    for col in df.columns:
-
-        try:
-
-            mask = (
-                mask |
-                df[col]
-                .astype(str)
-                .str.contains(
-                    search_text,
-                    case=False,
-                    na=False
-                )
-            )
-
-        except:
-            pass
-
-    df = df[mask]
-
-# ------------------------------------
-# DISTRICT FILTER
-# ------------------------------------
-
-if "district" in df.columns:
-
-    districts = sorted(
-        df["district"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
-
-    district = st.selectbox(
-        "Filter District",
-        ["All"] + districts
-    )
-
-    if district != "All":
-
-        df = df[
-            df["district"] == district
-        ]
-
-# ------------------------------------
-# DATAFRAME VIEW
-# ------------------------------------
-
-st.subheader("📋 Records")
-
-st.dataframe(
-    df,
-    use_container_width=True,
-    height=500
-)
-
-# ------------------------------------
-# EXPORT
-# ------------------------------------
-
-csv = df.to_csv(
-    index=False
-)
-
-st.download_button(
-    "⬇ Download Current View",
-    csv,
-    f"{table_option}.csv",
-    "text/csv"
-)
-
-# ------------------------------------
-# VIEW RECORD DETAILS
-# ------------------------------------
-
-st.markdown("---")
-
-st.subheader("🔎 Record Details")
-
-record_index = st.number_input(
-    "Row Number",
-    min_value=0,
-    max_value=max(
-        len(df)-1,
-        0
-    ),
-    value=0
-)
-
-selected_record = df.iloc[
-    record_index
-]
-
-st.json(
-    selected_record.to_dict()
-)
-
-# ------------------------------------
-# EDIT SECTION
-# ------------------------------------
-
-if table_option == "Extracted Data":
-
-    st.markdown("---")
-
-    st.subheader("✏ Edit Record")
-
-    record_id = selected_record.get(
-        "id",
-        None
-    )
-
-    if record_id:
-
-        college_name = st.text_input(
-            "College Name",
-            selected_record.get(
-                "college_name",
-                ""
-            )
-        )
-
-        district = st.text_input(
-            "District",
-            selected_record.get(
-                "district",
-                ""
-            )
-        )
-
-        email = st.text_input(
-            "Email",
-            selected_record.get(
-                "email",
-                ""
-            )
-        )
-
-        phone = st.text_input(
-            "Phone",
-            selected_record.get(
-                "phone",
-                ""
-            )
-        )
-
-        website = st.text_input(
-            "Website",
-            selected_record.get(
-                "website",
-                ""
-            )
-        )
-
-        naac = st.text_input(
-            "NAAC Grade",
-            selected_record.get(
-                "naac_grade",
-                ""
-            )
-        )
-
-        if st.button(
-            "💾 Update Record"
-        ):
-
-            update_extracted_record(
-
-                record_id,
-
-                {
-                    "college_name": college_name,
-                    "district": district,
-                    "email": email,
-                    "phone": phone,
-                    "website": website,
-                    "naac_grade": naac
-                }
-
-            )
-
-            st.success(
-                "Record Updated"
-            )
-
-            st.rerun()
-
-# ------------------------------------
-# DELETE SECTION
-# ------------------------------------
-
-st.markdown("---")
-
-st.subheader("🗑 Delete Record")
-
-delete_id = st.number_input(
-    "Record ID",
-    min_value=1,
-    step=1
-)
-
-if st.button(
-    "Delete Record"
-):
-
     try:
 
-        if table_option == "Colleges":
-
-            delete_college(
-                delete_id
-            )
-
-        elif table_option == "Extracted Data":
-
-            delete_extracted_record(
-                delete_id
-            )
-
-        st.success(
-            "Record Deleted"
+        search_df = search_colleges(
+            search_text
         )
 
-        st.rerun()
+        if not search_df.empty:
+
+            st.success(
+                f"{len(search_df)} records found"
+            )
+
+            st.dataframe(
+                search_df,
+                use_container_width=True
+            )
+
+        else:
+
+            st.warning(
+                "No matching records found."
+            )
 
     except Exception as e:
 
         st.error(str(e))
 
-# ------------------------------------
-# DATABASE HEALTH
-# ------------------------------------
+# =====================================================
+# TABLE DATA
+# =====================================================
 
 st.markdown("---")
 
-st.subheader("⚙ Database Health")
-
-health_df = pd.DataFrame({
-
-    "Table": [
-
-        "colleges",
-        "crawl_results",
-        "extracted_details"
-
-    ],
-
-    "Rows": [
-
-        len(colleges_df),
-        len(crawl_df),
-        len(extracted_df)
-
-    ]
-
-})
-
-st.dataframe(
-    health_df,
-    use_container_width=True
+st.subheader(
+    f"📋 {table_name}"
 )
 
-# ------------------------------------
+if not df.empty:
+
+    st.metric(
+        "Records",
+        len(df)
+    )
+
+    st.dataframe(
+
+        df,
+
+        use_container_width=True,
+
+        height=600
+
+    )
+
+else:
+
+    st.warning(
+        "No records available."
+    )
+
+# =====================================================
+# DOWNLOAD
+# =====================================================
+
+if not df.empty:
+
+    st.download_button(
+
+        label=f"⬇ Download {table_name}.csv",
+
+        data=df.to_csv(
+            index=False
+        ),
+
+        file_name=f"{table_name}.csv",
+
+        mime="text/csv"
+
+    )
+
+# =====================================================
+# TABLE ACTIONS
+# =====================================================
+
+st.markdown("---")
+
+st.subheader("⚠ Table Actions")
+
+col1, col2, col3 = st.columns(3)
+
+# -----------------------------------------------------
+
+with col1:
+
+    if st.button(
+        "Clear Colleges"
+    ):
+
+        delete_all_colleges()
+
+        st.success(
+            "Colleges table cleared."
+        )
+
+        st.rerun()
+
+# -----------------------------------------------------
+
+with col2:
+
+    if st.button(
+        "Clear Crawl Results"
+    ):
+
+        delete_all_crawl_results()
+
+        st.success(
+            "Crawl results cleared."
+        )
+
+        st.rerun()
+
+# -----------------------------------------------------
+
+with col3:
+
+    if st.button(
+        "Clear Extracted Data"
+    ):
+
+        delete_all_extracted_records()
+
+        st.success(
+            "Extracted data cleared."
+        )
+
+        st.rerun()
+
+# =====================================================
+# DATA PREVIEW
+# =====================================================
+
+st.markdown("---")
+
+st.subheader("🔎 Record Preview")
+
+if not df.empty:
+
+    row_id = st.number_input(
+
+        "Row Number",
+
+        min_value=0,
+
+        max_value=len(df)-1,
+
+        value=0
+
+    )
+
+    st.json(
+
+        df.iloc[row_id].to_dict()
+
+    )
+
+# =====================================================
+# COLUMN SUMMARY
+# =====================================================
+
+st.markdown("---")
+
+st.subheader("📑 Columns")
+
+if not df.empty:
+
+    col_df = pd.DataFrame({
+
+        "Column Name":
+            df.columns,
+
+        "Data Type":
+            [
+                str(dtype)
+                for dtype
+                in df.dtypes
+            ]
+
+    })
+
+    st.dataframe(
+
+        col_df,
+
+        use_container_width=True
+
+    )
+
+# =====================================================
 # FOOTER
-# ------------------------------------
+# =====================================================
 
 st.markdown("---")
 
 st.caption(
-    f"Updated: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
+    "VTU College Intelligence Database Manager"
 )
 
-st.caption(
-    "VTU College Intelligence Platform | Database Manager"
-)
