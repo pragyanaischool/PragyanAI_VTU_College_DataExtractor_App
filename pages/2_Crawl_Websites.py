@@ -1,6 +1,16 @@
+"""
+pages/2_Crawl_Websites.py
+
+Website Crawling Page
+
+Uses:
+- ScrapeGraphAI
+- BeautifulSoup Fallback
+- SQLite Storage
+"""
+
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 
 from src.database.crud import (
     get_all_colleges,
@@ -8,279 +18,120 @@ from src.database.crud import (
     get_crawl_results
 )
 
-from src.crawler.website_discovery import (
-    discover_website
+from src.crawler.scrapegraph_engine import (
+    scrape_website
 )
 
-from src.crawler.crawl4ai_engine import (
-    crawl_website
+from src.utils.config import (
+    GROQ_API_KEY
 )
 
-# ---------------------------------------
+# =====================================================
 # PAGE CONFIG
-# ---------------------------------------
+# =====================================================
 
 st.set_page_config(
-    page_title="Website Crawler",
+    page_title="Crawl Websites",
     page_icon="🌐",
     layout="wide"
 )
 
-# ---------------------------------------
-# TITLE
-# ---------------------------------------
+# =====================================================
+# HEADER
+# =====================================================
 
-st.title("🌐 VTU Website Discovery & Crawling")
+st.title("🌐 Crawl College Websites")
 
 st.markdown("""
-Discover official college websites and crawl them using Crawl4AI.
+This page:
+
+1. Reads collected colleges
+2. Crawls official websites
+3. Extracts website content
+4. Stores content in SQLite
 """)
 
-# ---------------------------------------
+# =====================================================
 # LOAD COLLEGES
-# ---------------------------------------
+# =====================================================
 
-try:
-
-    colleges_df = get_all_colleges()
-
-except Exception as e:
-
-    st.error(str(e))
-    st.stop()
+colleges_df = get_all_colleges()
 
 if colleges_df.empty:
 
     st.warning(
-        "No colleges found. Run College Collector first."
+        "No colleges found.\n\nRun Step 1: Collect Colleges."
     )
 
     st.stop()
 
-# ---------------------------------------
-# SIDEBAR
-# ---------------------------------------
+# =====================================================
+# SUMMARY
+# =====================================================
 
-st.sidebar.header("Crawler Options")
+c1, c2 = st.columns(2)
 
-crawl_limit = st.sidebar.number_input(
-    "Maximum Colleges to Crawl",
-    min_value=1,
-    max_value=500,
-    value=10
-)
-
-# ---------------------------------------
-# STATS
-# ---------------------------------------
-
-col1, col2, col3 = st.columns(3)
-
-col1.metric(
+c1.metric(
     "Total Colleges",
     len(colleges_df)
 )
 
 crawl_df = get_crawl_results()
 
-col2.metric(
+c2.metric(
     "Already Crawled",
     len(crawl_df)
 )
 
-remaining = max(
-    0,
-    len(colleges_df) - len(crawl_df)
-)
+# =====================================================
+# PREVIEW
+# =====================================================
 
-col3.metric(
-    "Remaining",
-    remaining
-)
+st.subheader("College Websites")
 
-st.markdown("---")
+display_cols = [
 
-# ---------------------------------------
-# SELECT COLLEGE
-# ---------------------------------------
+    col for col in [
 
-college_name = st.selectbox(
-    "Select College",
-    colleges_df["college_name"].tolist()
-)
-
-selected_row = colleges_df[
-    colleges_df["college_name"] == college_name
-].iloc[0]
-
-# ---------------------------------------
-# COLLEGE INFO
-# ---------------------------------------
-
-st.subheader("College Information")
-
-info_col1, info_col2 = st.columns(2)
-
-with info_col1:
-
-    st.write(
-        f"**College Code:** {selected_row.get('college_code','')}"
-    )
-
-    st.write(
-        f"**District:** {selected_row.get('district','')}"
-    )
-
-with info_col2:
-
-    st.write(
-        f"**Website:** {selected_row.get('website','Not Available')}"
-    )
-
-# ---------------------------------------
-# DISCOVER WEBSITE
-# ---------------------------------------
-
-st.subheader("Website Discovery")
-
-if st.button(
-    "🔍 Discover Website",
-    use_container_width=True
-):
-
-    with st.spinner(
-        "Searching Website..."
-    ):
-
-        try:
-
-            website = discover_website(
-                college_name
-            )
-
-            st.success(
-                f"Website Found: {website}"
-            )
-
-            st.session_state[
-                "website"
-            ] = website
-
-        except Exception as e:
-
-            st.error(str(e))
-
-# ---------------------------------------
-# DISPLAY WEBSITE
-# ---------------------------------------
-
-website = st.session_state.get(
-    "website",
-    selected_row.get(
+        "college_name",
         "website",
-        ""
-    )
-)
+        "district"
 
-if website:
+    ]
 
-    st.info(
-        f"Website: {website}"
-    )
+    if col in colleges_df.columns
 
-# ---------------------------------------
-# CRAWL SINGLE WEBSITE
-# ---------------------------------------
+]
 
-st.subheader("Single Website Crawl")
-
-if st.button(
-    "🚀 Crawl Website",
+st.dataframe(
+    colleges_df[display_cols],
     use_container_width=True
-):
-
-    if not website:
-
-        st.error(
-            "Website not available."
-        )
-
-    else:
-
-        with st.spinner(
-            "Crawling Website..."
-        ):
-
-            try:
-
-                markdown = crawl_website(
-                    website
-                )
-
-                st.session_state[
-                    "markdown"
-                ] = markdown
-
-                save_crawl_result(
-                    college_name=college_name,
-                    website=website,
-                    markdown=markdown
-                )
-
-                st.success(
-                    "Website Crawled Successfully"
-                )
-
-            except Exception as e:
-
-                st.error(str(e))
-
-# ---------------------------------------
-# PREVIEW MARKDOWN
-# ---------------------------------------
-
-if "markdown" in st.session_state:
-
-    st.subheader(
-        "Markdown Preview"
-    )
-
-    st.text_area(
-        "Content",
-        st.session_state[
-            "markdown"
-        ][:10000],
-        height=500
-    )
-
-# ---------------------------------------
-# DOWNLOAD MARKDOWN
-# ---------------------------------------
-
-if "markdown" in st.session_state:
-
-    st.download_button(
-        "⬇ Download Markdown",
-        st.session_state[
-            "markdown"
-        ],
-        file_name=f"{college_name}.md",
-        mime="text/plain",
-        use_container_width=True
-    )
-
-# ---------------------------------------
-# BULK CRAWL
-# ---------------------------------------
-
-st.markdown("---")
-
-st.subheader(
-    "Bulk Crawl Colleges"
 )
 
+# =====================================================
+# CRAWL OPTIONS
+# =====================================================
+
+st.subheader("Crawler Settings")
+
+max_sites = st.number_input(
+
+    "Number of Colleges to Crawl",
+
+    min_value=1,
+
+    max_value=len(colleges_df),
+
+    value=min(20, len(colleges_df))
+
+)
+
+# =====================================================
+# START BUTTON
+# =====================================================
+
 if st.button(
-    "⚡ Crawl Multiple Colleges",
+    "🚀 Start Crawling",
     use_container_width=True
 ):
 
@@ -288,109 +139,206 @@ if st.button(
 
     status = st.empty()
 
-    subset_df = colleges_df.head(
-        crawl_limit
+    results = []
+
+    selected_df = colleges_df.head(
+        max_sites
     )
 
-    success_count = 0
+    total = len(selected_df)
 
-    for idx, row in enumerate(
-        subset_df.itertuples()
-    ):
+    for idx, row in selected_df.iterrows():
+
+        college_name = row.get(
+            "college_name",
+            ""
+        )
+
+        website = row.get(
+            "website",
+            ""
+        )
+
+        if not website:
+
+            continue
+
+        status.info(
+            f"Crawling: {college_name}"
+        )
 
         try:
 
-            college = row.college_name
+            result = scrape_website(
 
-            website = row.website
+                website,
 
-            if not website:
+                groq_api_key=GROQ_API_KEY
 
-                website = discover_website(
-                    college
-                )
+            )
 
-            if website:
-
-                markdown = crawl_website(
-                    website
-                )
+            if result["success"]:
 
                 save_crawl_result(
-                    college_name=college,
-                    website=website,
-                    markdown=markdown
+
+                    college_name=
+                    college_name,
+
+                    website=
+                    website,
+
+                    markdown=
+                    result["content"],
+
+                    title=
+                    result["title"],
+
+                    crawl_time=0
+
                 )
 
-                success_count += 1
+                results.append({
 
-            progress.progress(
-                (idx + 1)
-                / len(subset_df)
-            )
+                    "College":
+                        college_name,
 
-            status.info(
-                f"Crawling: {college}"
-            )
+                    "Website":
+                        website,
 
-        except Exception:
+                    "Status":
+                        "Success",
 
-            pass
+                    "Characters":
+                        len(
+                            result[
+                                "content"
+                            ]
+                        )
+
+                })
+
+            else:
+
+                results.append({
+
+                    "College":
+                        college_name,
+
+                    "Website":
+                        website,
+
+                    "Status":
+                        "Failed",
+
+                    "Characters":
+                        0
+
+                })
+
+        except Exception as e:
+
+            results.append({
+
+                "College":
+                    college_name,
+
+                "Website":
+                    website,
+
+                "Status":
+                    f"Error: {e}",
+
+                "Characters":
+                    0
+
+            })
+
+        progress.progress(
+            (idx + 1) / total
+        )
 
     status.success(
-        f"Completed. {success_count} websites crawled."
+        "Crawling Completed"
     )
 
-# ---------------------------------------
-# CRAWL HISTORY
-# ---------------------------------------
+    st.subheader(
+        "Results"
+    )
+
+    st.dataframe(
+
+        pd.DataFrame(results),
+
+        use_container_width=True
+
+    )
+
+# =====================================================
+# DATABASE CONTENT
+# =====================================================
 
 st.markdown("---")
 
 st.subheader(
-    "Crawl History"
+    "Stored Crawl Results"
 )
 
 crawl_df = get_crawl_results()
 
 if not crawl_df.empty:
 
-    display_df = crawl_df.copy()
-
-    if "markdown" in display_df.columns:
-
-        display_df["content_size"] = (
-            display_df["markdown"]
-            .astype(str)
-            .apply(len)
-        )
-
-        display_df = display_df.drop(
-            columns=["markdown"]
-        )
-
     st.dataframe(
-        display_df,
-        use_container_width=True,
-        height=400
+
+        crawl_df,
+
+        use_container_width=True
+
     )
 
 else:
 
     st.info(
-        "No crawl results available."
+        "No crawl data available."
     )
 
-# ---------------------------------------
-# FOOTER
-# ---------------------------------------
+# =====================================================
+# PREVIEW CONTENT
+# =====================================================
 
-st.markdown("---")
+if not crawl_df.empty:
 
-st.caption(
-    f"Last Refresh: {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}"
-)
+    st.markdown("---")
 
-st.caption(
-    "VTU College Intelligence Platform | Crawl4AI Module"
-)
+    st.subheader(
+        "Content Preview"
+    )
+
+    record_id = st.selectbox(
+
+        "Select Record",
+
+        crawl_df["id"]
+
+    )
+
+    selected = crawl_df[
+        crawl_df["id"]
+        == record_id
+    ]
+
+    if not selected.empty:
+
+        content = selected.iloc[0][
+            "markdown"
+        ]
+
+        st.text_area(
+
+            "Website Content",
+
+            content[:10000],
+
+            height=400
+
+        )
+        
