@@ -22,9 +22,7 @@ DATABASE_PATH = os.path.join(
     DATABASE_NAME
 )
 
-DATABASE_URL = (
-    f"sqlite:///{DATABASE_PATH}"
-)
+DATABASE_URL = f"sqlite:///{DATABASE_PATH}"
 
 # ==========================================================
 # SQLALCHEMY ENGINE
@@ -37,7 +35,7 @@ engine = create_engine(
 )
 
 # ==========================================================
-# TABLES
+# TABLE DEFINITIONS
 # ==========================================================
 
 COLLEGES_TABLE = """
@@ -63,6 +61,7 @@ CREATE TABLE IF NOT EXISTS colleges (
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
+
 )
 """
 
@@ -83,6 +82,7 @@ CREATE TABLE IF NOT EXISTS crawl_results (
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
+
 )
 """
 
@@ -151,6 +151,7 @@ CREATE TABLE IF NOT EXISTS extracted_details (
 
     created_at TIMESTAMP
     DEFAULT CURRENT_TIMESTAMP
+
 )
 """
 
@@ -174,6 +175,106 @@ def create_tables():
             text(EXTRACTED_DETAILS_TABLE)
         )
 
+# ==========================================================
+# DATABASE MIGRATION
+# ==========================================================
+
+def migrate_database():
+
+    try:
+
+        with engine.begin() as conn:
+
+            columns = conn.execute(
+                text(
+                    "PRAGMA table_info(colleges)"
+                )
+            ).fetchall()
+
+            existing_columns = [
+                column[1]
+                for column in columns
+            ]
+
+            if "std_code" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN std_code TEXT
+                        """
+                    )
+                )
+
+                print(
+                    "Added column: std_code"
+                )
+
+            if "rural_urban" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN rural_urban TEXT
+                        """
+                    )
+                )
+
+                print(
+                    "Added column: rural_urban"
+                )
+
+            if "phone" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN phone TEXT
+                        """
+                    )
+                )
+
+            if "district" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN district TEXT
+                        """
+                    )
+                )
+
+            if "website" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN website TEXT
+                        """
+                    )
+                )
+
+            if "email" not in existing_columns:
+
+                conn.execute(
+                    text(
+                        """
+                        ALTER TABLE colleges
+                        ADD COLUMN email TEXT
+                        """
+                    )
+                )
+
+    except Exception as e:
+
+        print(
+            f"Migration Error: {e}"
+        )
 
 # ==========================================================
 # INITIALIZE DATABASE
@@ -185,16 +286,17 @@ def initialize_database():
 
         create_tables()
 
+        migrate_database()
+
         print(
-            "✅ Database Initialized"
+            "Database Initialized"
         )
 
     except Exception as e:
 
         print(
-            f"❌ Database Error: {e}"
+            f"Database Error: {e}"
         )
-
 
 # ==========================================================
 # RESET DATABASE
@@ -224,6 +326,7 @@ def reset_database():
 
     create_tables()
 
+    migrate_database()
 
 # ==========================================================
 # TABLE EXISTS
@@ -243,16 +346,11 @@ def table_exists(table_name):
         result = conn.execute(
             text(query),
             {
-                "table_name":
-                table_name
+                "table_name": table_name
             }
         )
 
-        return (
-            result.fetchone()
-            is not None
-        )
-
+        return result.fetchone() is not None
 
 # ==========================================================
 # DATABASE STATS
@@ -261,13 +359,9 @@ def table_exists(table_name):
 def get_database_stats():
 
     tables = [
-
         "colleges",
-
         "crawl_results",
-
         "extracted_details"
-
     ]
 
     stats = {}
@@ -280,10 +374,7 @@ def get_database_stats():
 
                 count = conn.execute(
                     text(
-                        f"""
-                        SELECT COUNT(*)
-                        FROM {table}
-                        """
+                        f"SELECT COUNT(*) FROM {table}"
                     )
                 ).scalar()
 
@@ -294,7 +385,6 @@ def get_database_stats():
                 stats[table] = 0
 
     return stats
-
 
 # ==========================================================
 # DATABASE INFO
@@ -317,8 +407,7 @@ def get_database_info():
                 (
                     os.path.getsize(
                         DATABASE_PATH
-                    )
-                    / (1024 * 1024)
+                    ) / (1024 * 1024)
                 ),
                 2
             )
@@ -329,7 +418,6 @@ def get_database_info():
 
     }
 
-
 # ==========================================================
 # CONNECTION
 # ==========================================================
@@ -338,13 +426,11 @@ def get_connection():
 
     return engine.connect()
 
-
 # ==========================================================
 # INITIALIZE ON IMPORT
 # ==========================================================
 
 initialize_database()
-
 
 # ==========================================================
 # TEST
@@ -353,15 +439,7 @@ initialize_database()
 if __name__ == "__main__":
 
     print(
-        "\nDatabase Information\n"
-    )
-
-    print(
         get_database_info()
-    )
-
-    print(
-        "\nDatabase Statistics\n"
     )
 
     print(
