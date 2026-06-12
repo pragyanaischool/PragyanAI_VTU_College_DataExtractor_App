@@ -10,5 +10,4 @@ groq
 python-dotenv
 aiohttp
 asyncio
-crawl4ai
-crawl4ai-setup
+scrapegraphai
