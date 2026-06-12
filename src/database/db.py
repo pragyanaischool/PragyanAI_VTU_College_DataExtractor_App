@@ -1,27 +1,41 @@
 """
 src/database/db.py
 
-Database Initialization Module
+Database Layer
 
-Creates:
-
-1. colleges
-2. crawl_results
-3. extracted_details
-
-Database:
+SQLite Database:
 data/vtu.db
 """
+
+import os
 
 from sqlalchemy import create_engine
 from sqlalchemy import text
 
-from src.utils.config import (
-    SQLITE_CONNECTION_STRING
+# =====================================================
+# DATABASE PATH
+# =====================================================
+
+DATABASE_DIR = "data"
+
+DATABASE_FILE = "vtu.db"
+
+os.makedirs(
+    DATABASE_DIR,
+    exist_ok=True
+)
+
+DATABASE_PATH = os.path.join(
+    DATABASE_DIR,
+    DATABASE_FILE
+)
+
+SQLITE_CONNECTION_STRING = (
+    f"sqlite:///{DATABASE_PATH}"
 )
 
 # =====================================================
-# DATABASE ENGINE
+# ENGINE
 # =====================================================
 
 engine = create_engine(
@@ -34,7 +48,7 @@ engine = create_engine(
 # COLLEGES TABLE
 # =====================================================
 
-COLLEGES_TABLE_SQL = """
+COLLEGES_TABLE = """
 
 CREATE TABLE IF NOT EXISTS colleges (
 
@@ -59,10 +73,10 @@ CREATE TABLE IF NOT EXISTS colleges (
 """
 
 # =====================================================
-# CRAWL RESULTS TABLE
+# CRAWL RESULTS
 # =====================================================
 
-CRAWL_RESULTS_TABLE_SQL = """
+CRAWL_RESULTS_TABLE = """
 
 CREATE TABLE IF NOT EXISTS crawl_results (
 
@@ -85,10 +99,10 @@ CREATE TABLE IF NOT EXISTS crawl_results (
 """
 
 # =====================================================
-# EXTRACTED DETAILS TABLE
+# EXTRACTED DETAILS
 # =====================================================
 
-EXTRACTED_DETAILS_TABLE_SQL = """
+EXTRACTED_DETAILS_TABLE = """
 
 CREATE TABLE IF NOT EXISTS extracted_details (
 
@@ -112,13 +126,25 @@ CREATE TABLE IF NOT EXISTS extracted_details (
 
     director TEXT,
 
+    established_year TEXT,
+
+    ownership_type TEXT,
+
     naac_grade TEXT,
 
     nba_status TEXT,
 
     nirf_rank TEXT,
 
+    campus_area TEXT,
+
+    student_strength TEXT,
+
+    faculty_count TEXT,
+
     courses TEXT,
+
+    departments TEXT,
 
     placement_percentage TEXT,
 
@@ -128,11 +154,17 @@ CREATE TABLE IF NOT EXISTS extracted_details (
 
     recruiters TEXT,
 
+    research_centers TEXT,
+
+    patents TEXT,
+
     linkedin TEXT,
 
     facebook TEXT,
 
     instagram TEXT,
+
+    youtube TEXT,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 
@@ -149,19 +181,25 @@ def create_tables():
     with engine.begin() as conn:
 
         conn.execute(
-            text(COLLEGES_TABLE_SQL)
+            text(
+                COLLEGES_TABLE
+            )
         )
 
         conn.execute(
-            text(CRAWL_RESULTS_TABLE_SQL)
+            text(
+                CRAWL_RESULTS_TABLE
+            )
         )
 
         conn.execute(
-            text(EXTRACTED_DETAILS_TABLE_SQL)
+            text(
+                EXTRACTED_DETAILS_TABLE
+            )
         )
 
 # =====================================================
-# DATABASE INITIALIZATION
+# INIT DATABASE
 # =====================================================
 
 def initialize_database():
@@ -171,7 +209,7 @@ def initialize_database():
         create_tables()
 
         print(
-            "Database Initialized Successfully"
+            "Database Initialized"
         )
 
     except Exception as e:
@@ -181,10 +219,10 @@ def initialize_database():
         )
 
 # =====================================================
-# DROP TABLES
+# RESET DATABASE
 # =====================================================
 
-def drop_tables():
+def reset_database():
 
     with engine.begin() as conn:
 
@@ -206,14 +244,6 @@ def drop_tables():
             )
         )
 
-# =====================================================
-# RESET DATABASE
-# =====================================================
-
-def reset_database():
-
-    drop_tables()
-
     create_tables()
 
 # =====================================================
@@ -224,7 +254,7 @@ def table_exists(
     table_name
 ):
 
-    query = f"""
+    query = """
 
     SELECT name
 
@@ -232,14 +262,21 @@ def table_exists(
 
     WHERE type='table'
 
-    AND name='{table_name}'
+    AND name=:table_name
 
     """
 
     with engine.connect() as conn:
 
         result = conn.execute(
-            text(query)
+
+            text(query),
+
+            {
+                "table_name":
+                    table_name
+            }
+
         )
 
         return result.fetchone() is not None
@@ -268,13 +305,15 @@ def get_database_stats():
 
             try:
 
-                query = (
-                    f"SELECT COUNT(*) "
-                    f"FROM {table}"
-                )
-
                 count = conn.execute(
-                    text(query)
+
+                    text(
+                        f"""
+                        SELECT COUNT(*)
+                        FROM {table}
+                        """
+                    )
+
                 ).scalar()
 
                 stats[table] = count
@@ -286,7 +325,7 @@ def get_database_stats():
     return stats
 
 # =====================================================
-# GET CONNECTION
+# CONNECTION
 # =====================================================
 
 def get_connection():
@@ -294,24 +333,77 @@ def get_connection():
     return engine.connect()
 
 # =====================================================
-# INITIALIZE ON IMPORT
+# DATABASE INFO
+# =====================================================
+
+def get_database_info():
+
+    return {
+
+        "database_path":
+            DATABASE_PATH,
+
+        "database_exists":
+            os.path.exists(
+                DATABASE_PATH
+            ),
+
+        "database_size_mb":
+            round(
+
+                os.path.getsize(
+                    DATABASE_PATH
+                ) / (1024 * 1024),
+
+                2
+
+            )
+
+            if os.path.exists(
+                DATABASE_PATH
+            )
+
+            else 0
+
+    }
+
+# =====================================================
+# INIT ON IMPORT
 # =====================================================
 
 initialize_database()
 
 # =====================================================
-# DEBUG
+# TEST
 # =====================================================
 
 if __name__ == "__main__":
 
-    initialize_database()
+    print()
+
+    print(
+        "Database Info"
+    )
+
+    print(
+        get_database_info()
+    )
 
     print()
 
-    print("Tables Created")
+    print(
+        "Database Stats"
+    )
+
+    print(
+        get_database_stats()
+    )
 
     print()
+
+    print(
+        "Tables Exist"
+    )
 
     print(
         "colleges:",
@@ -333,10 +425,4 @@ if __name__ == "__main__":
             "extracted_details"
         )
     )
-
-    print()
-
-    print(
-        get_database_stats()
-    )
-  
+    
