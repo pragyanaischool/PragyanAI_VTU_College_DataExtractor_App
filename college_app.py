@@ -42,7 +42,7 @@ st.set_page_config(
 )
 
 # =====================================================
-# DATABASE INIT
+# INITIALIZE DATABASE
 # =====================================================
 
 initialize_database()
@@ -57,31 +57,37 @@ with st.sidebar:
 
     st.markdown("---")
 
-    st.markdown("### Navigation")
+    st.markdown("### Modules")
 
     st.markdown("""
-    1️⃣ Collect Colleges
+    ✅ Collect Colleges
 
-    2️⃣ Crawl Websites
+    ✅ Crawl Websites
 
-    3️⃣ Extract Data
+    ✅ Extract Data
 
-    4️⃣ Database
+    ✅ Database
 
-    5️⃣ Analytics
+    ✅ Analytics
 
-    6️⃣ Export
+    ✅ Export
     """)
 
     st.markdown("---")
 
-    st.markdown("### System Status")
+    st.markdown("### AI Status")
 
     try:
 
-        st.success(
-            streamlit_status()
-        )
+        status = streamlit_status()
+
+        if "Connected" in status:
+
+            st.success(status)
+
+        else:
+
+            st.warning(status)
 
     except Exception:
 
@@ -89,34 +95,32 @@ with st.sidebar:
             "GROQ Not Connected"
         )
 
+    st.markdown("---")
+
+    st.markdown(
+        f"Version: {APP_VERSION}"
+    )
+
 # =====================================================
 # HEADER
 # =====================================================
 
-st.title("🎓 VTU College Intelligence Platform")
-
-st.caption(
-    f"Version {APP_VERSION}"
+st.title(
+    "🎓 VTU College Intelligence Platform"
 )
 
 st.markdown("""
-AI-Powered VTU College Intelligence System
+AI-Powered Engineering College Intelligence Platform
 
-Features:
+This platform helps you:
 
-✅ VTU Affiliated College Collection
-
-✅ Website Discovery
-
-✅ Crawl4AI Website Crawling
-
-✅ GROQ AI Extraction
-
-✅ SQLite Database
-
-✅ Analytics Dashboard
-
-✅ CSV / Excel / JSON Export
+- Collect VTU Affiliated Colleges
+- Discover Official Websites
+- Crawl College Websites
+- Extract Structured Intelligence
+- Store Information in SQLite
+- Analyze Colleges
+- Export Results
 """)
 
 # =====================================================
@@ -148,27 +152,29 @@ except Exception:
     extracted_df = pd.DataFrame()
 
 # =====================================================
-# METRICS
+# TOP METRICS
 # =====================================================
 
 st.markdown("---")
 
-st.subheader("📊 Platform Statistics")
+st.subheader(
+    "📊 Platform Statistics"
+)
 
-c1, c2, c3, c4 = st.columns(4)
+col1, col2, col3, col4 = st.columns(4)
 
-c1.metric(
+col1.metric(
     "Colleges",
     len(colleges_df)
 )
 
-c2.metric(
-    "Crawled Sites",
+col2.metric(
+    "Websites Crawled",
     len(crawl_df)
 )
 
-c3.metric(
-    "Extracted Records",
+col3.metric(
+    "Records Extracted",
     len(extracted_df)
 )
 
@@ -177,29 +183,46 @@ try:
     stats = get_statistics()
 
     total_records = (
-        stats["colleges"]
+
+        stats.get(
+            "colleges",
+            0
+        )
+
         +
-        stats["crawl_results"]
+
+        stats.get(
+            "crawl_results",
+            0
+        )
+
         +
-        stats["extracted_details"]
+
+        stats.get(
+            "extracted_details",
+            0
+        )
+
     )
 
 except Exception:
 
     total_records = 0
 
-c4.metric(
+col4.metric(
     "Total Records",
     total_records
 )
 
 # =====================================================
-# DATABASE STATUS
+# DATABASE HEALTH
 # =====================================================
 
 st.markdown("---")
 
-st.subheader("🗄 Database Status")
+st.subheader(
+    "🗄 Database Health"
+)
 
 try:
 
@@ -207,13 +230,15 @@ try:
 
     db_df = pd.DataFrame({
 
-        "Table": list(
-            db_stats.keys()
-        ),
+        "Table":
+            list(
+                db_stats.keys()
+            ),
 
-        "Records": list(
-            db_stats.values()
-        )
+        "Records":
+            list(
+                db_stats.values()
+            )
 
     })
 
@@ -238,9 +263,9 @@ tab1, tab2, tab3 = st.tabs(
 
     [
 
-        "Colleges",
+        "Collected Colleges",
 
-        "Crawl Results",
+        "Crawled Websites",
 
         "Extracted Data"
 
@@ -248,7 +273,9 @@ tab1, tab2, tab3 = st.tabs(
 
 )
 
-# -----------------------------------------------------
+# =====================================================
+# COLLEGES
+# =====================================================
 
 with tab1:
 
@@ -259,8 +286,11 @@ with tab1:
     if not colleges_df.empty:
 
         st.dataframe(
+
             colleges_df.head(100),
+
             use_container_width=True
+
         )
 
     else:
@@ -269,55 +299,67 @@ with tab1:
             "No colleges collected yet."
         )
 
-# -----------------------------------------------------
+# =====================================================
+# CRAWLED DATA
+# =====================================================
 
 with tab2:
 
     st.subheader(
-        "Crawled Websites"
+        "Website Crawl Results"
     )
 
     if not crawl_df.empty:
 
         st.dataframe(
+
             crawl_df.head(100),
+
             use_container_width=True
+
         )
 
     else:
 
         st.info(
-            "No crawl data available."
+            "No websites crawled yet."
         )
 
-# -----------------------------------------------------
+# =====================================================
+# EXTRACTED DATA
+# =====================================================
 
 with tab3:
 
     st.subheader(
-        "Extracted College Data"
+        "Extracted College Intelligence"
     )
 
     if not extracted_df.empty:
 
         st.dataframe(
+
             extracted_df.head(100),
+
             use_container_width=True
+
         )
 
     else:
 
         st.info(
-            "No extracted records available."
+            "No extracted data available."
         )
 
 # =====================================================
-# PROJECT WORKFLOW
+# WORKFLOW
 # =====================================================
 
 st.markdown("---")
 
-st.subheader("🔄 Workflow")
+st.subheader(
+    "🔄 Platform Workflow"
+)
 
 st.markdown("""
 
@@ -327,12 +369,12 @@ Collect VTU Affiliated Colleges
 ⬇
 
 ### Step 2
-Discover College Websites
+Discover Official Websites
 
 ⬇
 
 ### Step 3
-Crawl Websites using Crawl4AI
+Scrape Websites using ScrapeGraphAI
 
 ⬇
 
@@ -342,12 +384,12 @@ Extract Information using GROQ
 ⬇
 
 ### Step 5
-Store Results in SQLite
+Store in SQLite Database
 
 ⬇
 
 ### Step 6
-Analyze & Export Data
+Analytics & Export
 
 """)
 
@@ -357,17 +399,24 @@ Analyze & Export Data
 
 st.markdown("---")
 
-st.subheader("⚙ Technology Stack")
+st.subheader(
+    "⚙ Technology Stack"
+)
 
 tech_df = pd.DataFrame({
 
     "Component": [
 
         "Frontend",
-        "Crawler",
+
+        "Website Scraping",
+
         "AI Extraction",
+
         "Database",
+
         "Analytics",
+
         "Deployment"
 
     ],
@@ -375,11 +424,16 @@ tech_df = pd.DataFrame({
     "Technology": [
 
         "Streamlit",
-        "Crawl4AI",
+
+        "ScrapeGraphAI + BeautifulSoup",
+
         "GROQ Llama 3.3 70B",
+
         "SQLite",
+
         "Pandas + Plotly",
-        "Streamlit Cloud"
+
+        "Streamlit Community Cloud"
 
     ]
 
@@ -391,11 +445,68 @@ st.dataframe(
 )
 
 # =====================================================
+# QUICK STATS
+# =====================================================
+
+st.markdown("---")
+
+st.subheader(
+    "📈 Quick Insights"
+)
+
+if not extracted_df.empty:
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        if "district" in extracted_df.columns:
+
+            st.write(
+                "Unique Districts"
+            )
+
+            st.metric(
+
+                "Districts",
+
+                extracted_df[
+                    "district"
+                ].nunique()
+
+            )
+
+    with col2:
+
+        if "naac_grade" in extracted_df.columns:
+
+            st.write(
+                "NAAC Grades Available"
+            )
+
+            st.metric(
+
+                "Grades",
+
+                extracted_df[
+                    "naac_grade"
+                ].nunique()
+
+            )
+
+else:
+
+    st.info(
+        "Run extraction to generate analytics."
+    )
+
+# =====================================================
 # FOOTER
 # =====================================================
 
 st.markdown("---")
 
 st.caption(
-    "VTU College Intelligence Platform | Crawl4AI + GROQ + SQLite"
+    "VTU College Intelligence Platform | Streamlit + ScrapeGraphAI + GROQ + SQLite"
 )
+
