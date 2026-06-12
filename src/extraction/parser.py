@@ -1,16 +1,5 @@
-"""
-src/extraction/parser.py
 
-Parser Utilities
-
-Used For:
-
-1. Website Content Cleaning
-2. Text Chunking
-3. JSON Extraction
-4. JSON Validation
-5. GROQ Response Parsing
-"""
+# src/extraction/parser.py
 
 import json
 import re
@@ -24,29 +13,23 @@ from src.utils.config import (
     DEFAULT_COLLEGE_SCHEMA
 )
 
+
 # =====================================================
 # CLEAN TEXT
 # =====================================================
 
-def clean_text(
-    text: str
-) -> str:
+def clean_text(text: str) -> str:
 
     if not text:
-
         return ""
 
     text = str(text)
-
-    # remove extra spaces
 
     text = re.sub(
         r"\s+",
         " ",
         text
     )
-
-    # remove multiple new lines
 
     text = re.sub(
         r"\n+",
@@ -61,17 +44,12 @@ def clean_text(
 # CLEAN CONTENT
 # =====================================================
 
-def clean_content(
-    content: str
-) -> str:
+def clean_content(content: str) -> str:
 
     if not content:
-
         return ""
 
-    content = clean_text(
-        content
-    )
+    content = clean_text(content)
 
     if len(content) > MAX_MARKDOWN_LENGTH:
 
@@ -92,12 +70,9 @@ def chunk_markdown(
     overlap: int = CHUNK_OVERLAP
 ) -> List[str]:
 
-    content = clean_content(
-        content
-    )
+    content = clean_content(content)
 
     if len(content) <= chunk_size:
-
         return [content]
 
     chunks = []
@@ -120,7 +95,186 @@ def chunk_markdown(
 
 
 # =====================================================
-# EXTRACT JSON FROM RESPONSE
+# EMAIL
+# =====================================================
+
+def extract_emails(content: str):
+
+    pattern = (
+        r"[A-Za-z0-9._%+-]+"
+        r"@[A-Za-z0-9.-]+"
+        r"\.[A-Za-z]{2,}"
+    )
+
+    return list(
+        set(
+            re.findall(
+                pattern,
+                content
+            )
+        )
+    )
+
+
+# =====================================================
+# PHONE
+# =====================================================
+
+def extract_phones(content: str):
+
+    pattern = (
+        r"(?:\+91[\-\s]?)?"
+        r"[6-9]\d{9}"
+    )
+
+    return list(
+        set(
+            re.findall(
+                pattern,
+                content
+            )
+        )
+    )
+
+
+# =====================================================
+# WEBSITE
+# =====================================================
+
+def extract_websites(content: str):
+
+    pattern = (
+        r"https?://[^\s]+"
+    )
+
+    return list(
+        set(
+            re.findall(
+                pattern,
+                content
+            )
+        )
+    )
+
+
+# =====================================================
+# PRINCIPAL
+# =====================================================
+
+def extract_principal(content: str):
+
+    match = re.search(
+        r"principal[:\-\s]+([A-Za-z .]+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+# =====================================================
+# DIRECTOR
+# =====================================================
+
+def extract_director(content: str):
+
+    match = re.search(
+        r"director[:\-\s]+([A-Za-z .]+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1).strip()
+
+    return ""
+
+
+# =====================================================
+# NAAC
+# =====================================================
+
+def extract_naac(content: str):
+
+    match = re.search(
+        r"NAAC\s*[:\-]?\s*([A-Z+]+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1)
+
+    return ""
+
+
+# =====================================================
+# NBA
+# =====================================================
+
+def extract_nba(content: str):
+
+    if "nba" in content.lower():
+        return "Yes"
+
+    return ""
+
+
+# =====================================================
+# NIRF
+# =====================================================
+
+def extract_nirf(content: str):
+
+    match = re.search(
+        r"NIRF.*?(\d+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1)
+
+    return ""
+
+
+# =====================================================
+# PACKAGE
+# =====================================================
+
+def extract_highest_package(content: str):
+
+    match = re.search(
+        r"highest package.*?(\d+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1)
+
+    return ""
+
+
+def extract_average_package(content: str):
+
+    match = re.search(
+        r"average package.*?(\d+)",
+        content,
+        re.IGNORECASE
+    )
+
+    if match:
+        return match.group(1)
+
+    return ""
+
+
+# =====================================================
+# JSON EXTRACTION
 # =====================================================
 
 def extract_json(
@@ -128,14 +282,11 @@ def extract_json(
 ) -> Dict:
 
     if not response_text:
-
         return {}
 
     try:
 
         response_text = response_text.strip()
-
-        # remove markdown
 
         response_text = response_text.replace(
             "```json",
@@ -152,7 +303,6 @@ def extract_json(
         end = response_text.rfind("}")
 
         if start == -1 or end == -1:
-
             return {}
 
         json_text = response_text[
@@ -169,24 +319,7 @@ def extract_json(
 
 
 # =====================================================
-# SAFE JSON PARSE
-# =====================================================
-
-def safe_parse_json(
-    text: str
-):
-
-    try:
-
-        return json.loads(text)
-
-    except Exception:
-
-        return {}
-
-
-# =====================================================
-# VALIDATE OUTPUT
+# VALIDATION
 # =====================================================
 
 def validate_college_json(
@@ -201,25 +334,23 @@ def validate_college_json(
         data,
         dict
     ):
-
         return validated
 
-    for key in validated.keys():
+    for key in validated:
 
         if key in data:
-
             validated[key] = data[key]
 
     return validated
 
 
 # =====================================================
-# MERGE MULTIPLE RESULTS
+# MERGE
 # =====================================================
 
 def merge_json_results(
     results: List[Dict]
-) -> Dict:
+):
 
     merged = {}
 
@@ -229,18 +360,15 @@ def merge_json_results(
             result,
             dict
         ):
-
             continue
 
         for key, value in result.items():
 
-            if value is None:
-                continue
-
-            if value == "":
-                continue
-
-            if value == []:
+            if value in [
+                None,
+                "",
+                []
+            ]:
                 continue
 
             merged[key] = value
@@ -249,16 +377,10 @@ def merge_json_results(
 
 
 # =====================================================
-# TITLE EXTRACTION
+# TITLE
 # =====================================================
 
-def extract_title(
-    content: str
-):
-
-    if not content:
-
-        return ""
+def extract_title(content: str):
 
     lines = content.split("\n")
 
@@ -267,14 +389,13 @@ def extract_title(
         line = line.strip()
 
         if len(line) > 5:
-
             return line
 
     return ""
 
 
 # =====================================================
-# CONTACT BLOCK
+# CONTACT SECTION
 # =====================================================
 
 def extract_contact_section(
@@ -297,19 +418,11 @@ def extract_contact_section(
 
     for line in lines:
 
-        lower = line.lower()
-
         if any(
-
-            keyword in lower
-
-            for keyword in keywords
-
+            k in line.lower()
+            for k in keywords
         ):
-
-            matched.append(
-                line
-            )
+            matched.append(line)
 
     return "\n".join(
         matched
@@ -317,155 +430,66 @@ def extract_contact_section(
 
 
 # =====================================================
-# TRUNCATE TEXT
-# =====================================================
-
-def truncate_text(
-    text: str,
-    max_length: int = 5000
-):
-
-    if not text:
-
-        return ""
-
-    if len(text) <= max_length:
-
-        return text
-
-    return (
-
-        text[:max_length]
-
-        + " ..."
-
-    )
-
-
-# =====================================================
-# SECTION DETECTOR
-# =====================================================
-
-def extract_key_sections(
-    content: str
-):
-
-    sections = {
-
-        "about": False,
-
-        "placement": False,
-
-        "admission": False,
-
-        "research": False,
-
-        "contact": False
-
-    }
-
-    text = content.lower()
-
-    if "about" in text:
-
-        sections["about"] = True
-
-    if "placement" in text:
-
-        sections["placement"] = True
-
-    if "admission" in text:
-
-        sections["admission"] = True
-
-    if "research" in text:
-
-        sections["research"] = True
-
-    if "contact" in text:
-
-        sections["contact"] = True
-
-    return sections
-
-
-# =====================================================
-# CONTENT STATISTICS
+# CONTENT STATS
 # =====================================================
 
 def content_statistics(
     content: str
 ):
 
-    if not content:
-
-        return {}
-
     return {
 
         "characters":
-            len(content),
+        len(content),
 
         "words":
-            len(
-                content.split()
-            ),
+        len(content.split()),
 
         "chunks":
-            len(
-                chunk_markdown(
-                    content
-                )
+        len(
+            chunk_markdown(
+                content
             )
-
+        )
     }
 
 
 # =====================================================
-# TEST
+# QUICK EXTRACT
 # =====================================================
 
-if __name__ == "__main__":
+def quick_extract(content):
 
-    sample = """
+    return {
 
-    RV College of Engineering
+        "emails":
+        extract_emails(content),
 
-    Bengaluru
+        "phones":
+        extract_phones(content),
 
-    NAAC A++
+        "websites":
+        extract_websites(content),
 
-    Email:
-    principal@rvce.edu.in
+        "principal":
+        extract_principal(content),
 
-    Phone:
-    +91 9876543210
+        "director":
+        extract_director(content),
 
-    """
+        "naac":
+        extract_naac(content),
 
-    print()
+        "nba":
+        extract_nba(content),
 
-    print(
-        content_statistics(
-            sample
-        )
-    )
+        "nirf":
+        extract_nirf(content),
 
-    print()
+        "highest_package":
+        extract_highest_package(content),
 
-    print(
-        chunk_markdown(
-            sample,
-            50,
-            10
-        )
-    )
+        "average_package":
+        extract_average_package(content)
 
-    print()
-
-    print(
-        extract_title(
-            sample
-        )
-    )
-    
+    }
