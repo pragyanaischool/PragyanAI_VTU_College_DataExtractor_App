@@ -46,12 +46,12 @@ def update_college_website(
 # ==========================================================
 
 def save_colleges(df):
-    """Save colleges to database."""
 
     if df.empty:
         return False
 
     required_columns = [
+
         "college_code",
         "college_name",
         "std_code",
@@ -60,17 +60,41 @@ def save_colleges(df):
         "district",
         "website",
         "email"
+
     ]
 
     for column in required_columns:
+
         if column not in df.columns:
+
             df[column] = ""
 
-    df = df[required_columns]
+    df = df[
+        required_columns
+    ]
 
     df = df.drop_duplicates(
         subset=["college_code"]
     )
+
+    existing = get_all_colleges()
+
+    if not existing.empty:
+
+        existing_codes = set(
+            existing[
+                "college_code"
+            ].astype(str)
+        )
+
+        df = df[
+            ~df["college_code"]
+            .astype(str)
+            .isin(existing_codes)
+        ]
+
+    if df.empty:
+        return True
 
     df.to_sql(
         "colleges",
@@ -170,17 +194,30 @@ def save_crawl_result(
     title="",
     crawl_time=0
 ):
-    """Save crawl result."""
 
     try:
 
+        if crawl_result_exists(
+            website
+        ):
+            return True
+
         df = pd.DataFrame([
             {
-                "college_name": college_name,
-                "website": website,
-                "title": title,
-                "markdown": markdown,
-                "crawl_time": crawl_time
+                "college_name":
+                college_name,
+
+                "website":
+                website,
+
+                "title":
+                title,
+
+                "markdown":
+                markdown,
+
+                "crawl_time":
+                crawl_time
             }
         ])
 
