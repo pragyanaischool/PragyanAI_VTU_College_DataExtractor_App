@@ -488,4 +488,80 @@ if __name__ == "__main__":
         database_health()
     )
     
-    
+def get_colleges_without_websites():
+
+    try:
+
+        return pd.read_sql(
+            """
+            SELECT *
+            FROM colleges
+            WHERE website IS NULL
+               OR website = ''
+            ORDER BY college_name
+            """,
+            engine
+        )
+
+    except Exception as e:
+
+        print(
+            f"get_colleges_without_websites Error: {e}"
+        )
+
+        return pd.DataFrame()
+
+
+def get_colleges_with_websites():
+
+    try:
+
+        return pd.read_sql(
+            """
+            SELECT *
+            FROM colleges
+            WHERE website IS NOT NULL
+              AND website <> ''
+            ORDER BY college_name
+            """,
+            engine
+        )
+
+    except Exception as e:
+
+        print(
+            f"get_colleges_with_websites Error: {e}"
+        )
+
+        return pd.DataFrame()
+
+
+def crawl_result_exists(
+    website
+):
+
+    try:
+
+        query = text(
+            """
+            SELECT COUNT(*)
+            FROM crawl_results
+            WHERE website=:website
+            """
+        )
+
+        with engine.connect() as conn:
+
+            count = conn.execute(
+                query,
+                {
+                    "website":
+                    website
+                }
+            ).scalar()
+
+        return count > 0
+
+    except Exception:
+
+        return False    
