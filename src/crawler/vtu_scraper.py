@@ -5,6 +5,7 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 
+
 VTU_URL = "https://vtu.ac.in/affiliated-institute/"
 
 HEADERS = {
@@ -17,9 +18,7 @@ HEADERS = {
 
 
 def clean_text(text):
-    """
-    Clean extracted text.
-    """
+    """Clean and normalize text."""
 
     if not text:
         return ""
@@ -35,106 +34,91 @@ def clean_text(text):
     return text.strip()
 
 
-def is_college_name(text):
+def parse_vtu_row(text):
     """
-    Check if text looks like a college name.
-    """
+    Parse VTU college row.
 
-    if not text:
-        return False
+    Example:
 
-    keywords = [
-
-        "college",
-
-        "engineering",
-
-        "technology",
-
-        "institute",
-
-        "polytechnic"
-
-    ]
-
-    text = text.lower()
-
-    return any(
-        keyword in text
-        for keyword in keywords
-    )
-
-
-def extract_email(text):
-    """
-    Extract email address.
+    1 Code: AB College: ANJUMAN INSTITUTE OF TECHNOLOGY & MANAGEMENT
+    STD Code: 08385 Phone: 226554 Rural/Urban: Rural
     """
 
-    pattern = (
-        r"[A-Za-z0-9._%+-]+"
-        r"@[A-Za-z0-9.-]+"
-        r"\.[A-Za-z]{2,}"
-    )
+    record = {
+        "college_code": "",
+        "college_name": "",
+        "std_code": "",
+        "phone": "",
+        "rural_urban": "",
+        "district": "",
+        "website": "",
+        "email": ""
+    }
 
-    match = re.search(
-        pattern,
-        text
-    )
+    try:
 
-    if match:
-        return match.group(0)
+        code_match = re.search(
+            r"Code:\s*([A-Z0-9]+)",
+            text
+        )
 
-    return ""
+        if code_match:
+            record["college_code"] = (
+                code_match.group(1)
+            )
 
+        college_match = re.search(
+            r"College:\s*(.*?)\s*STD Code:",
+            text
+        )
 
-def extract_phone(text):
-    """
-    Extract phone number.
-    """
+        if college_match:
+            record["college_name"] = (
+                college_match.group(1).strip()
+            )
 
-    pattern = (
-        r"(\+91[\-\s]?)?"
-        r"[6-9]\d{9}"
-    )
+        std_match = re.search(
+            r"STD Code:\s*([0-9]+)",
+            text
+        )
 
-    match = re.search(
-        pattern,
-        text
-    )
+        if std_match:
+            record["std_code"] = (
+                std_match.group(1)
+            )
 
-    if match:
-        return match.group(0)
+        phone_match = re.search(
+            r"Phone:\s*([0-9]+)",
+            text
+        )
 
-    return ""
+        if phone_match:
+            record["phone"] = (
+                phone_match.group(1)
+            )
 
+        rural_match = re.search(
+            r"Rural/Urban:\s*(\w+)",
+            text
+        )
 
-def extract_website(text):
-    """
-    Extract website URL.
-    """
+        if rural_match:
+            record["rural_urban"] = (
+                rural_match.group(1)
+            )
 
-    pattern = (
-        r"(https?://[^\s]+|www\.[^\s]+)"
-    )
+    except Exception as e:
 
-    match = re.search(
-        pattern,
-        text,
-        re.IGNORECASE
-    )
+        print(
+            f"Parse Error: {e}"
+        )
 
-    if match:
-        return match.group(0)
-
-    return ""
+    return record
 
 
 def scrape_vtu_colleges():
     """
     Scrape VTU affiliated colleges.
-
-    Returns:
-        list
     """
 
     colleges = []
@@ -144,7 +128,7 @@ def scrape_vtu_colleges():
         response = requests.get(
             VTU_URL,
             headers=HEADERS,
-            timeout=30
+            timeout=60
         )
 
         response.raise_for_status()
@@ -154,72 +138,60 @@ def scrape_vtu_colleges():
             "html.parser"
         )
 
-        candidates = set()
+        page_text = soup.get_text(
+            separator="\n"
+        )
 
-        # ------------------------------
-        # Links
-        # ------------------------------
+        lines = page_text.split("\n")
 
-        for tag in soup.find_all("a"):
+        for line in lines:
 
-            text = clean_text(
-                tag.get_text()
-            )
+            line = clean_text(line)
 
-            if len(text) < 5:
+            if not line:
                 continue
 
-            if is_college_name(text):
-                candidates.add(text)
+            if "College:" not in line:
+                continue
 
-        # ------------------------------
-        # Headings
-        # ------------------------------
+            if "Code:" not in line:
+                continue
 
-        for tag in soup.find_all(
-            [
-                "h1",
-                "h2",
-                "h3",
-                "h4",
-                "h5",
-                "p",
-                "li",
-                "div"
+            college = parse_vtu_row(
+                line
+            )
+
+            if college["college_name"]:
+
+                colleges.append(
+                    college
+                )
+
+        # Remove duplicates using college code
+
+        unique_colleges = {}
+
+        for college in colleges:
+
+            code = college[
+                "college_code"
             ]
-        ):
 
-            text = clean_text(
-                tag.get_text()
-            )
-
-            if len(text) < 5:
+            if not code:
                 continue
 
-            if is_college_name(text):
-                candidates.add(text)
+            unique_colleges[
+                code
+            ] = college
 
-        # ------------------------------
-        # Create Records
-        # ------------------------------
+        colleges = list(
+            unique_colleges.values()
+        )
 
-        for college_name in sorted(candidates):
-
-            colleges.append({
-
-                "college_code": "",
-
-                "college_name": college_name,
-
-                "district": "",
-
-                "website": "",
-
-                "email": "",
-
-                "phone": ""
-
-            })
+        colleges = sorted(
+            colleges,
+            key=lambda x: x["college_name"]
+        )
 
         return colleges
 
@@ -234,7 +206,7 @@ def scrape_vtu_colleges():
 
 def get_colleges_dataframe():
     """
-    Return colleges as dataframe.
+    Return colleges as DataFrame.
     """
 
     colleges = scrape_vtu_colleges()
@@ -255,7 +227,8 @@ def search_colleges(keyword):
         return df
 
     return df[
-        df["college_name"].str.contains(
+        df["college_name"]
+        .str.contains(
             keyword,
             case=False,
             na=False
@@ -283,16 +256,12 @@ if __name__ == "__main__":
     colleges = scrape_vtu_colleges()
 
     print(
-        f"Total Colleges Found: {len(colleges)}"
+        f"\nTotal Colleges Found: {len(colleges)}\n"
     )
 
-    if colleges:
+    for college in colleges[:10]:
 
-        print("\nFirst 10 Colleges:\n")
-
-        for college in colleges[:10]:
-
-            print(college)
+        print(college)
 
     df = pd.DataFrame(
         colleges
@@ -306,4 +275,5 @@ if __name__ == "__main__":
     print(
         "\nSaved: vtu_colleges.csv"
     )
+    
     
