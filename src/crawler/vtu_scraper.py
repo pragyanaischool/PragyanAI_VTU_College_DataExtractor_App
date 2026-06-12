@@ -18,29 +18,24 @@ HEADERS = {
 
 
 def clean_text(text):
-    """Clean and normalize text."""
+    """Clean text."""
 
     if not text:
         return ""
 
-    text = str(text)
-
-    text = re.sub(
+    return re.sub(
         r"\s+",
         " ",
-        text
-    )
-
-    return text.strip()
+        str(text)
+    ).strip()
 
 
-def parse_vtu_row(text):
+def parse_college_record(text):
     """
-    Parse VTU college row.
+    Parse VTU college record.
 
     Example:
-
-    1 Code: AB College: ANJUMAN INSTITUTE OF TECHNOLOGY & MANAGEMENT
+    Code: AB College: ANJUMAN INSTITUTE OF TECHNOLOGY & MANAGEMENT
     STD Code: 08385 Phone: 226554 Rural/Urban: Rural
     """
 
@@ -59,7 +54,8 @@ def parse_vtu_row(text):
 
         code_match = re.search(
             r"Code:\s*([A-Z0-9]+)",
-            text
+            text,
+            re.IGNORECASE
         )
 
         if code_match:
@@ -68,8 +64,9 @@ def parse_vtu_row(text):
             )
 
         college_match = re.search(
-            r"College:\s*(.*?)\s*STD Code:",
-            text
+            r"College:\s*(.*?)\s*STD\s*Code:",
+            text,
+            re.IGNORECASE
         )
 
         if college_match:
@@ -78,8 +75,9 @@ def parse_vtu_row(text):
             )
 
         std_match = re.search(
-            r"STD Code:\s*([0-9]+)",
-            text
+            r"STD\s*Code:\s*([0-9]+)",
+            text,
+            re.IGNORECASE
         )
 
         if std_match:
@@ -89,7 +87,8 @@ def parse_vtu_row(text):
 
         phone_match = re.search(
             r"Phone:\s*([0-9]+)",
-            text
+            text,
+            re.IGNORECASE
         )
 
         if phone_match:
@@ -98,8 +97,9 @@ def parse_vtu_row(text):
             )
 
         rural_match = re.search(
-            r"Rural/Urban:\s*(\w+)",
-            text
+            r"Rural/Urban:\s*(Rural|Urban)",
+            text,
+            re.IGNORECASE
         )
 
         if rural_match:
@@ -138,36 +138,32 @@ def scrape_vtu_colleges():
             "html.parser"
         )
 
-        page_text = soup.get_text(
-            separator="\n"
+        page_text = clean_text(
+            soup.get_text(" ")
         )
 
-        lines = page_text.split("\n")
+        pattern = re.compile(
+            r"Code:\s*[A-Z0-9]+.*?Rural/Urban:\s*(?:Rural|Urban)",
+            re.IGNORECASE
+        )
 
-        for line in lines:
+        matches = pattern.findall(
+            page_text
+        )
 
-            line = clean_text(line)
+        for match in matches:
 
-            if not line:
-                continue
-
-            if "College:" not in line:
-                continue
-
-            if "Code:" not in line:
-                continue
-
-            college = parse_vtu_row(
-                line
+            record = parse_college_record(
+                match
             )
 
-            if college["college_name"]:
+            if record["college_name"]:
 
                 colleges.append(
-                    college
+                    record
                 )
 
-        # Remove duplicates using college code
+        # Remove duplicates
 
         unique_colleges = {}
 
@@ -188,8 +184,7 @@ def scrape_vtu_colleges():
             unique_colleges.values()
         )
 
-        colleges = sorted(
-            colleges,
+        colleges.sort(
             key=lambda x: x["college_name"]
         )
 
@@ -206,19 +201,17 @@ def scrape_vtu_colleges():
 
 def get_colleges_dataframe():
     """
-    Return colleges as DataFrame.
+    Return DataFrame.
     """
 
-    colleges = scrape_vtu_colleges()
-
     return pd.DataFrame(
-        colleges
+        scrape_vtu_colleges()
     )
 
 
 def search_colleges(keyword):
     """
-    Search colleges by keyword.
+    Search colleges.
     """
 
     df = get_colleges_dataframe()
@@ -227,8 +220,7 @@ def search_colleges(keyword):
         return df
 
     return df[
-        df["college_name"]
-        .str.contains(
+        df["college_name"].str.contains(
             keyword,
             case=False,
             na=False
@@ -238,7 +230,7 @@ def search_colleges(keyword):
 
 def save_colleges_csv(filepath):
     """
-    Save colleges to CSV.
+    Save colleges CSV.
     """
 
     df = get_colleges_dataframe()
@@ -263,11 +255,9 @@ if __name__ == "__main__":
 
         print(college)
 
-    df = pd.DataFrame(
+    pd.DataFrame(
         colleges
-    )
-
-    df.to_csv(
+    ).to_csv(
         "vtu_colleges.csv",
         index=False
     )
@@ -275,5 +265,4 @@ if __name__ == "__main__":
     print(
         "\nSaved: vtu_colleges.csv"
     )
-    
     
